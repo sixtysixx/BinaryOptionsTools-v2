@@ -1,10 +1,12 @@
-use binary_options_tools::{error::BinaryOptionsToolsError, pocketoption::parser::message::WebSocketMessage};
+use binary_options_tools::pocketoption::types::data::PocketData;
+use binary_options_tools::reimports::ConfigBuilder;
+use binary_options_tools::{
+    error::BinaryOptionsToolsError, pocketoption::parser::message::WebSocketMessage,
+};
 use pyo3::prelude::*;
 use std::collections::HashSet;
 use std::time::Duration;
 use url::Url;
-use binary_options_tools::reimports::ConfigBuilder;
-use binary_options_tools::pocketoption::types::data::PocketData;
 
 use crate::error::BinaryResultPy;
 
@@ -38,26 +40,21 @@ impl PyConfig {
             urls: Vec::new(),
         }
     }
-
 }
 
 impl PyConfig {
     pub fn build(&self) -> BinaryResultPy<ConfigBuilder<PocketData, WebSocketMessage, ()>> {
-        let urls: Result<Vec<Url>, url::ParseError> = self
-            .urls
-            .iter()
-            .map(|url| Url::parse(url))
-            .collect();
+        let urls: Result<Vec<Url>, url::ParseError> =
+            self.urls.iter().map(|url| Url::parse(url)).collect();
 
         let config = ConfigBuilder::new()
-        .max_allowed_loops(self.max_allowed_loops)
-        .sleep_interval(self.sleep_interval)
-        .reconnect_time(self.reconnect_time)
-        .timeout(Duration::from_secs(self.timeout_secs))
-        .default_connection_url(HashSet::from_iter(urls.map_err(|e| {
-            BinaryOptionsToolsError::from(e)
-        })?));
+            .max_allowed_loops(self.max_allowed_loops)
+            .sleep_interval(self.sleep_interval)
+            .reconnect_time(self.reconnect_time)
+            .timeout(Duration::from_secs(self.timeout_secs))
+            .default_connection_url(HashSet::from_iter(
+                urls.map_err(|e| BinaryOptionsToolsError::from(e))?,
+            ));
         Ok(config)
     }
-
 }

@@ -1,4 +1,6 @@
-use binary_options_tools::{error::BinaryOptionsToolsError, pocketoption::error::PocketOptionError};
+use binary_options_tools::{
+    error::BinaryOptionsToolsError, pocketoption::error::PocketOptionError,
+};
 use pyo3::{exceptions::PyValueError, PyErr};
 use thiserror::Error;
 use uuid::Uuid;
@@ -20,7 +22,7 @@ pub enum BinaryErrorPy {
     #[error("Operation not allowed")]
     NotAllowed(String),
     #[error("Invalid Regex pattern, {0}")]
-    InvalidRegexError(#[from] regex::Error)
+    InvalidRegexError(#[from] regex::Error),
 }
 
 impl From<BinaryErrorPy> for PyErr {

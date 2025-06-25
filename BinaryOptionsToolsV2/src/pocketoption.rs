@@ -16,11 +16,11 @@ use pyo3_async_runtimes::tokio::future_into_py;
 use url::Url;
 use uuid::Uuid;
 
+use crate::config::PyConfig;
 use crate::error::BinaryErrorPy;
 use crate::runtime::get_runtime;
 use crate::stream::next_stream;
 use crate::validator::RawValidator;
-use crate::config::PyConfig;
 use tokio::sync::Mutex;
 
 #[pyclass]
@@ -48,7 +48,10 @@ impl RawPocketOption {
         runtime.block_on(async move {
             let client = if let Some(config) = config {
                 let builder = config.build()?;
-                let config = builder.build().map_err(BinaryOptionsToolsError::from).map_err(BinaryErrorPy::from)?;
+                let config = builder
+                    .build()
+                    .map_err(BinaryOptionsToolsError::from)
+                    .map_err(BinaryErrorPy::from)?;
                 PocketOption::new_with_config(ssid, config)
                     .await
                     .map_err(BinaryErrorPy::from)?
@@ -61,15 +64,23 @@ impl RawPocketOption {
 
     #[staticmethod]
     #[pyo3(signature = (ssid, url, config = None))]
-    pub fn new_with_url(py: Python<'_>, ssid: String, url: String, config: Option<PyConfig>) -> PyResult<Self> {
+    pub fn new_with_url(
+        py: Python<'_>,
+        ssid: String,
+        url: String,
+        config: Option<PyConfig>,
+    ) -> PyResult<Self> {
         let runtime = get_runtime(py)?;
         runtime.block_on(async move {
             let parsed_url = Url::parse(&url)
                 .map_err(|e| BinaryErrorPy::from(BinaryOptionsToolsError::from(e)))?;
-            
+
             let client = if let Some(config) = config {
                 let builder = config.build()?;
-                let config = builder.build().map_err(BinaryOptionsToolsError::from).map_err(BinaryErrorPy::from)?;
+                let config = builder
+                    .build()
+                    .map_err(BinaryOptionsToolsError::from)
+                    .map_err(BinaryErrorPy::from)?;
                 PocketOption::new_with_config(ssid, config)
                     .await
                     .map_err(BinaryErrorPy::from)?
@@ -81,8 +92,6 @@ impl RawPocketOption {
             Ok(Self { client })
         })
     }
-
-    
 
     pub async fn is_demo(&self) -> bool {
         self.client.is_demo().await
@@ -170,7 +179,14 @@ impl RawPocketOption {
         })
     }
 
-    pub fn get_candles_advanced<'py>(&self, py: Python<'py>, asset: String, period: i64, offset: i64, time: i64) -> PyResult<Bound<'py, PyAny>> {
+    pub fn get_candles_advanced<'py>(
+        &self,
+        py: Python<'py>,
+        asset: String,
+        period: i64,
+        offset: i64,
+        time: i64,
+    ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
 
         future_into_py(py, async move {
@@ -183,7 +199,7 @@ impl RawPocketOption {
                     .map_err(BinaryErrorPy::from)?
                     .into_py_any(py)
             })
-        })    
+        })
     }
 
     pub async fn balance(&self) -> PyResult<String> {
@@ -465,4 +481,3 @@ impl RawStreamIterator {
         })
     }
 }
-

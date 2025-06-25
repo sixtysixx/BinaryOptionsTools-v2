@@ -1,12 +1,12 @@
 #![allow(non_snake_case)]
 
+mod config;
 mod error;
 mod logs;
 mod pocketoption;
 mod runtime;
 mod stream;
 mod validator;
-mod config;
 
 use config::PyConfig;
 use logs::{start_tracing, LogBuilder, Logger, StreamLogsIterator, StreamLogsLayer};
