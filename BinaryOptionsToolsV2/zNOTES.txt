@@ -1,0 +1,5 @@
+### Main
+
+# No src/main.rs?
+# https://rustwiki.org/en/ | https://rustwiki.org/en/book/
+# planning to use https://github.com/smol-rs/smol
