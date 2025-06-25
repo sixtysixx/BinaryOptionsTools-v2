@@ -20,7 +20,12 @@
  * startTracing('./logs', 'DEBUG', true, []);
  * ```
  */
-export declare function startTracing(path: string, level: string, terminal: boolean, layers: Array<StreamLogsLayer>): void
+export declare function startTracing(
+  path: string,
+  level: string,
+  terminal: boolean,
+  layers: Array<StreamLogsLayer>,
+): void;
 /**
  * Iterator for receiving processed WebSocket messages.
  * Provides asynchronous iteration over parsed messages from the server.
@@ -60,7 +65,7 @@ export declare class StreamIterator {
    * }
    * ```
    */
-  next(): Promise<any | null>
+  next(): Promise<any | null>;
 }
 /**
  * Iterator for receiving raw WebSocket messages.
@@ -112,7 +117,7 @@ export declare class RawStreamIterator {
    * }
    * ```
    */
-  next(): Promise<string | null>
+  next(): Promise<string | null>;
 }
 /**
  * A client for interacting with the Pocket Option trading platform.
@@ -141,7 +146,7 @@ export declare class PocketOption {
    * const client = new PocketOption("your-ssid-here");
    * ```
    */
-  constructor(ssid: string)
+  constructor(ssid: string);
   /**
    * Creates a new PocketOption client instance with a custom WebSocket URL.
    *
@@ -157,7 +162,7 @@ export declare class PocketOption {
    * );
    * ```
    */
-  static newWithUrl(ssid: string, url: string): Promise<PocketOption>
+  static newWithUrl(ssid: string, url: string): Promise<PocketOption>;
   /**
    * Checks if the current account is a demo account.
    *
@@ -187,7 +192,7 @@ export declare class PocketOption {
    * }
    * ```
    */
-  isDemo(): Promise<boolean>
+  isDemo(): Promise<boolean>;
   /**
    * Executes a buy (CALL) order for a specified asset.
    *
@@ -206,7 +211,7 @@ export declare class PocketOption {
    * console.log(`Details: ${details}`);
    * ```
    */
-  buy(asset: string, amount: number, time: number): Promise<Array<any>>
+  buy(asset: string, amount: number, time: number): Promise<Array<any>>;
   /**
    * Executes a sell (PUT) order for a specified asset.
    *
@@ -225,7 +230,7 @@ export declare class PocketOption {
    * console.log(`Details: ${details}`);
    * ```
    */
-  sell(asset: string, amount: number, time: number): Promise<Array<any>>
+  sell(asset: string, amount: number, time: number): Promise<Array<any>>;
   /**
    * Checks the result of a trade by its ID.
    *
@@ -242,7 +247,7 @@ export declare class PocketOption {
    * console.log(`Profit: ${details.profit}`);
    * ```
    */
-  checkWin(tradeId: string): Promise<any>
+  checkWin(tradeId: string): Promise<any>;
   /**
    * Gets the expiration timestamp of a trade.
    *
@@ -260,7 +265,7 @@ export declare class PocketOption {
    * }
    * ```
    */
-  getDealEndTime(tradeId: string): Promise<number | null>
+  getDealEndTime(tradeId: string): Promise<number | null>;
   /**
    * Retrieves historical candle data for an asset.
    *
@@ -279,7 +284,7 @@ export declare class PocketOption {
    * console.log(`Retrieved ${data.length} candles`);
    * ```
    */
-  getCandles(asset: string, period: number, offset: number): Promise<any>
+  getCandles(asset: string, period: number, offset: number): Promise<any>;
   /**
    * Retrieves the current account balance.
    *
@@ -292,7 +297,7 @@ export declare class PocketOption {
    * console.log(`Current balance: ${balance}`);
    * ```
    */
-  balance(): Promise<number>
+  balance(): Promise<number>;
   /**
    * Retrieves all closed deals/trades.
    *
@@ -306,7 +311,7 @@ export declare class PocketOption {
    * console.log(`Total closed deals: ${data.length}`);
    * ```
    */
-  closedDeals(): Promise<any>
+  closedDeals(): Promise<any>;
   /**
    * Clears the list of closed deals from memory.
    *
@@ -315,7 +320,7 @@ export declare class PocketOption {
    * await client.clearClosedDeals();
    * ```
    */
-  clearClosedDeals(): Promise<void>
+  clearClosedDeals(): Promise<void>;
   /**
    * Retrieves all currently open deals/trades.
    *
@@ -329,7 +334,7 @@ export declare class PocketOption {
    * console.log(`Total open positions: ${data.length}`);
    * ```
    */
-  openedDeals(): Promise<any>
+  openedDeals(): Promise<any>;
   /**
    * Retrieves the current payout rates for assets.
    *
@@ -379,7 +384,7 @@ export declare class PocketOption {
    * console.log(`Best payout: ${bestAsset[0]} at ${bestAsset[1]}%`);
    * ```
    */
-  payout(asset?: string | Array<string> | undefined | null): Promise<any>
+  payout(asset?: string | Array<string> | undefined | null): Promise<any>;
   /**
    * Retrieves historical data for an asset.
    *
@@ -397,7 +402,7 @@ export declare class PocketOption {
    * console.log(`Retrieved ${data.length} historical records`);
    * ```
    */
-  history(asset: string, period: number): Promise<any>
+  history(asset: string, period: number): Promise<any>;
   /**
    * Subscribes to real-time price updates for a symbol.
    *
@@ -415,7 +420,7 @@ export declare class PocketOption {
    * }
    * ```
    */
-  subscribeSymbol(symbol: string): Promise<StreamIterator>
+  subscribeSymbol(symbol: string): Promise<StreamIterator>;
   /**
    * Subscribes to symbol updates with chunked delivery.
    *
@@ -434,7 +439,10 @@ export declare class PocketOption {
    * }
    * ```
    */
-  subscribeSymbolChunked(symbol: string, chunkSize: number): Promise<StreamIterator>
+  subscribeSymbolChunked(
+    symbol: string,
+    chunkSize: number,
+  ): Promise<StreamIterator>;
   /**
    * Subscribes to symbol updates with time-based delivery.
    *
@@ -453,7 +461,10 @@ export declare class PocketOption {
    * }
    * ```
    */
-  subscribeSymbolTimed(symbol: string, timeSeconds: number): Promise<StreamIterator>
+  subscribeSymbolTimed(
+    symbol: string,
+    timeSeconds: number,
+  ): Promise<StreamIterator>;
   /**
    * Sends a raw WebSocket message to the server.
    *
@@ -468,7 +479,7 @@ export declare class PocketOption {
    * }));
    * ```
    */
-  sendRawMessage(message: string): Promise<void>
+  sendRawMessage(message: string): Promise<void>;
   /**
    * Creates a raw order with custom validation.
    *
@@ -488,7 +499,7 @@ export declare class PocketOption {
    * );
    * ```
    */
-  createRawOrder(message: string, validator: Validator): Promise<string>
+  createRawOrder(message: string, validator: Validator): Promise<string>;
   /**
    * Creates a raw order with a timeout for response validation.
    *
@@ -510,7 +521,11 @@ export declare class PocketOption {
    * );
    * ```
    */
-  createRawOrderWithTimeout(message: string, validator: Validator, timeout: number): Promise<string>
+  createRawOrderWithTimeout(
+    message: string,
+    validator: Validator,
+    timeout: number,
+  ): Promise<string>;
   /**
    * Creates a raw order with timeout and automatic retry functionality.
    *
@@ -532,7 +547,11 @@ export declare class PocketOption {
    * );
    * ```
    */
-  createRawOrderWithTimeoutAndRetry(message: string, validator: Validator, timeout: number): Promise<string>
+  createRawOrderWithTimeoutAndRetry(
+    message: string,
+    validator: Validator,
+    timeout: number,
+  ): Promise<string>;
   /**
    * Creates an iterator for handling raw WebSocket messages with validation.
    *
@@ -557,7 +576,11 @@ export declare class PocketOption {
    * }
    * ```
    */
-  createRawIterator(message: string, validator: Validator, timeout?: number | undefined | null): Promise<RawStreamIterator>
+  createRawIterator(
+    message: string,
+    validator: Validator,
+    timeout?: number | undefined | null,
+  ): Promise<RawStreamIterator>;
 }
 /**
  * A validator for WebSocket messages that provides various matching strategies.
@@ -583,7 +606,7 @@ export declare class Validator {
    * console.log(validator.check("any message")); // true
    * ```
    */
-  constructor()
+  constructor();
   /**
    * Creates a new regex validator that matches messages using a regular expression pattern.
    *
@@ -597,7 +620,7 @@ export declare class Validator {
    * console.log(validator.check("Hi World")); // false
    * ```
    */
-  static regex(pattern: string): Validator
+  static regex(pattern: string): Validator;
   /**
    * Creates a new validator that checks if a message contains the specified pattern.
    *
@@ -611,7 +634,7 @@ export declare class Validator {
    * console.log(validator.check("Hello")); // false
    * ```
    */
-  static contains(pattern: string): Validator
+  static contains(pattern: string): Validator;
   /**
    * Creates a new validator that checks if a message starts with the specified pattern.
    *
@@ -625,7 +648,7 @@ export declare class Validator {
    * console.log(validator.check("World Hello")); // false
    * ```
    */
-  static startsWith(pattern: string): Validator
+  static startsWith(pattern: string): Validator;
   /**
    * Creates a new validator that checks if a message ends with the specified pattern.
    *
@@ -639,7 +662,7 @@ export declare class Validator {
    * console.log(validator.check("World Hello")); // false
    * ```
    */
-  static endsWith(pattern: string): Validator
+  static endsWith(pattern: string): Validator;
   /**
    * Creates a new validator that negates the result of another validator.
    *
@@ -654,7 +677,7 @@ export declare class Validator {
    * console.log(notContains.check("Hello World")); // false
    * ```
    */
-  static ne(validator: Validator): Validator
+  static ne(validator: Validator): Validator;
   /**
    * Creates a new validator that requires all provided validators to match.
    *
@@ -670,7 +693,7 @@ export declare class Validator {
    * console.log(both.check("Hello Universe")); // false
    * ```
    */
-  static all(validators: Array<Validator>): Validator
+  static all(validators: Array<Validator>): Validator;
   /**
    * Creates a new validator that requires at least one of the provided validators to match.
    *
@@ -687,7 +710,7 @@ export declare class Validator {
    * console.log(either.check("Hey there")); // false
    * ```
    */
-  static any(validators: Array<Validator>): Validator
+  static any(validators: Array<Validator>): Validator;
   /**
    * Checks if a message matches this validator's conditions.
    *
@@ -705,7 +728,7 @@ export declare class Validator {
    * console.log(validator.check("Hello Universe")); // false
    * ```
    */
-  check(msg: string): boolean
+  check(msg: string): boolean;
 }
 /**
  * A custom logging layer that can be used to capture and process log messages.
@@ -719,7 +742,7 @@ export declare class Validator {
  * const iterator = builder.createLogsIterator('DEBUG');
  * ```
  */
-export declare class StreamLogsLayer { }
+export declare class StreamLogsLayer {}
 /**
  * Iterator for receiving log messages from a `StreamLogsLayer`.
  * Supports asynchronous iteration over log messages.
@@ -760,7 +783,7 @@ export declare class StreamLogsIterator {
    * }
    * ```
    */
-  next(): Promise<any | null>
+  next(): Promise<any | null>;
 }
 /**
  * Builder pattern for configuring the logging system.
@@ -791,7 +814,7 @@ export declare class LogBuilder {
    * const builder = new LogBuilder();
    * ```
    */
-  constructor()
+  constructor();
   /**
    * Creates a new logs iterator that receives log messages at the specified level.
    *
@@ -813,7 +836,10 @@ export declare class LogBuilder {
    * const iterator2 = builder.createLogsIterator('INFO', 60);
    * ```
    */
-  createLogsIterator(level: string, timeout?: number | undefined | null): StreamLogsIterator
+  createLogsIterator(
+    level: string,
+    timeout?: number | undefined | null,
+  ): StreamLogsIterator;
   /**
    * Adds a file output for logs at the specified level.
    *
@@ -835,7 +861,7 @@ export declare class LogBuilder {
    * builder.logFile('./debug.log', 'DEBUG');
    * ```
    */
-  logFile(path: string, level: string): void
+  logFile(path: string, level: string): void;
   /**
    * Adds terminal (console) output for logs at the specified level.
    *
@@ -853,7 +879,7 @@ export declare class LogBuilder {
    * builder.terminal('INFO');
    * ```
    */
-  terminal(level: string): void
+  terminal(level: string): void;
   /**
    * Finalizes the logging configuration and initializes the logging system.
    * Must be called after all outputs are configured and before logging begins.
@@ -875,7 +901,7 @@ export declare class LogBuilder {
    * builder.build(); // Error: Builder has already been built
    * ```
    */
-  build(): void
+  build(): void;
 }
 /**
  * Simple logging interface for emitting log messages at different levels.
@@ -901,7 +927,7 @@ export declare class Logger {
    * const logger = new Logger();
    * ```
    */
-  constructor()
+  constructor();
   /**
    * Logs a debug message.
    * Only appears if logging level is set to DEBUG.
@@ -916,7 +942,7 @@ export declare class Logger {
    * logger.debug(`Current value: ${value}`);
    * ```
    */
-  debug(message: string): void
+  debug(message: string): void;
   /**
    * Logs an info message.
    * Only appears if logging level is set to INFO or lower.
@@ -931,7 +957,7 @@ export declare class Logger {
    * logger.info(`Processed ${count} items`);
    * ```
    */
-  info(message: string): void
+  info(message: string): void;
   /**
    * Logs a warning message.
    * Only appears if logging level is set to WARN or lower.
@@ -946,7 +972,7 @@ export declare class Logger {
    * logger.warn(`Retry attempt ${retryCount} of ${maxRetries}`);
    * ```
    */
-  warn(message: string): void
+  warn(message: string): void;
   /**
    * Logs an error message.
    * Only appears if logging level is set to ERROR or lower.
@@ -961,5 +987,5 @@ export declare class Logger {
    * logger.error(`Failed to connect: ${error.message}`);
    * ```
    */
-  error(message: string): void
+  error(message: string): void;
 }

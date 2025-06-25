@@ -6,7 +6,7 @@ This directory contains the complete documentation website for BinaryOptionsTool
 
 - **Modern Design**: Beautiful purple theme with glassmorphism effects
 - **Multi-language Support**: Complete documentation for Python, JavaScript, and Rust
-- **Interactive Elements**: 
+- **Interactive Elements**:
   - Language-specific code examples with tabs
   - Copy-to-clipboard functionality
   - Animated code demonstrations
@@ -26,7 +26,7 @@ This directory contains the complete documentation website for BinaryOptionsTool
 docs/
 ├── index.html              # Homepage with hero section and overview
 ├── python.html             # Python API documentation
-├── javascript.html         # JavaScript API documentation  
+├── javascript.html         # JavaScript API documentation
 ├── rust.html               # Rust API documentation
 ├── api.html                # Comprehensive API reference
 ├── examples.html           # Interactive code examples
@@ -66,12 +66,14 @@ docs/
 To run locally for testing:
 
 1. **Simple HTTP Server** (Python):
+
    ```bash
    cd docs
    python -m http.server 8000
    ```
 
 2. **Node.js HTTP Server**:
+
    ```bash
    cd docs
    npx http-server -p 8000
@@ -84,27 +86,31 @@ To run locally for testing:
 ## 🎨 Customization
 
 ### Colors
+
 The purple theme is defined in CSS custom properties in `assets/css/main.css`:
 
 ```css
 :root {
-    --primary-color: #8b45ff;
-    --primary-dark: #6237b3;
-    --primary-light: #a855f7;
-    --secondary-color: #00d4aa;
-    --accent-color: #ff6b6b;
-    /* ... more colors */
+  --primary-color: #8b45ff;
+  --primary-dark: #6237b3;
+  --primary-light: #a855f7;
+  --secondary-color: #00d4aa;
+  --accent-color: #ff6b6b;
+  /* ... more colors */
 }
 ```
 
 ### Content Updates
+
 - **Homepage Hero**: Edit the hero section in `index.html`
 - **API Documentation**: Update the API reference in `api.html`
 - **Examples**: Add new examples in `examples.html`
 - **Language Docs**: Update language-specific guides in respective HTML files
 
 ### Bot Services Integration
+
 The documentation prominently features chipa.tech bot services:
+
 - Call-to-action buttons throughout all pages
 - Dedicated bot services sections
 - Professional service promotion
@@ -112,27 +118,33 @@ The documentation prominently features chipa.tech bot services:
 ## 🔧 Interactive Features
 
 ### Language Tabs
+
 Multi-language code examples with seamless switching:
+
 ```html
 <div class="language-selector">
-    <button class="lang-btn active" data-tab="python">Python</button>
-    <button class="lang-btn" data-tab="javascript">JavaScript</button>
-    <button class="lang-btn" data-tab="rust">Rust</button>
+  <button class="lang-btn active" data-tab="python">Python</button>
+  <button class="lang-btn" data-tab="javascript">JavaScript</button>
+  <button class="lang-btn" data-tab="rust">Rust</button>
 </div>
 ```
 
 ### Copy-to-Clipboard
+
 All code blocks include copy functionality:
+
 ```javascript
 // Automatically added to all <pre><code> blocks
-button.addEventListener('click', async () => {
-    await navigator.clipboard.writeText(code);
-    // Show success animation
+button.addEventListener("click", async () => {
+  await navigator.clipboard.writeText(code);
+  // Show success animation
 });
 ```
 
 ### Animations
+
 Scroll-triggered animations for enhanced UX:
+
 - Fade in animations for content sections
 - Staggered animations for lists and grids
 - Parallax effects for backgrounds
@@ -141,6 +153,7 @@ Scroll-triggered animations for enhanced UX:
 ## 📱 Responsive Design
 
 The documentation is fully responsive with:
+
 - **Mobile Navigation**: Hamburger menu for mobile devices
 - **Flexible Layouts**: CSS Grid and Flexbox for responsive design
 - **Touch-Friendly**: Large tap targets for mobile users

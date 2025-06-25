@@ -2,6 +2,7 @@
 
 [![Crates.io](https://img.shields.io/crates/v/binary_options_tools.svg)](https://crates.io/crates/binary_options_tools)
 [![Docs.rs](https://docs.rs/binary_options_tools/badge.svg)](https://docs.rs/binary_options_tools)
+
 <!-- Add other badges as appropriate, e.g., license, build status -->
 
 A Rust crate providing tools to interact programmatically with various binary options trading platforms.
@@ -18,5 +19,5 @@ Add the crate to your `Cargo.toml` dependencies:
 
 ```toml
 [dependencies]
-binary_options_tools = "0.1.7" 
+binary_options_tools = "0.1.7"
 ```

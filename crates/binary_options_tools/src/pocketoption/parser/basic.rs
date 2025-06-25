@@ -5,6 +5,7 @@ use crate::pocketoption::{
     error::PocketResult, types::update::float_time, utils::basic::get_index,
 };
 
+/// Represents an update stream entry with asset details and timestamp.
 #[derive(Debug, Deserialize)]
 #[allow(unused)]
 pub struct UpdateStream {
@@ -14,6 +15,7 @@ pub struct UpdateStream {
     value: f64,
 }
 
+/// Enumerates possible asset types in lowercase format.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "lowercase")]
 enum AssetType {
@@ -24,6 +26,7 @@ enum AssetType {
     Index,
 }
 
+/// Struct for loading historical data periods with asset info and pagination details.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct LoadHistoryPeriod {
     pub asset: String,
@@ -34,6 +37,18 @@ pub struct LoadHistoryPeriod {
 }
 
 impl LoadHistoryPeriod {
+    /// Creates a new LoadHistoryPeriod instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `asset` - The asset symbol as a string-like type.
+    /// * `time` - The time value as i64.
+    /// * `period` - The period value as i64.
+    /// * `offset` - The offset value as i64.
+    ///
+    /// # Returns
+    ///
+    /// A PocketResult containing the new LoadHistoryPeriod instance or an error.
     pub fn new(asset: impl ToString, time: i64, period: i64, offset: i64) -> PocketResult<Self> {
         Ok(LoadHistoryPeriod {
             asset: asset.to_string(),

@@ -5,6 +5,7 @@ We love your input! We want to make contributing as easy and transparent as poss
 ## Development Setup
 
 1. Install Rust and Node.js
+
 ```bash
 # Install Rust
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
@@ -14,11 +15,13 @@ yarn install
 ```
 
 2. Build the project
+
 ```bash
 yarn build
 ```
 
 3. Run tests
+
 ```bash
 yarn test
 ```

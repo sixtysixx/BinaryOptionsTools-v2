@@ -47,7 +47,7 @@ jobs:
           working-directory: BinaryOptionsToolsV2 # Confirm this path is correct
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter
-          sccache: 'true'
+          sccache: "true"
           manylinux: auto
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -84,7 +84,7 @@ jobs:
 
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter
-          sccache: 'true'
+          sccache: "true"
           manylinux: musllinux_1_2
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -117,15 +117,14 @@ jobs:
           working-directory: BinaryOptionsToolsV2 # Confirm this path is correct
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter
-          sccache: 'true'
+          sccache: "true"
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
           name: wheels-windows-${{ matrix.platform.target }}
           path: BinaryOptionsToolsV2/dist
       - name: Publish
-        run:
-          maturin publish -u __token__ -p ${{ secrets.PYPI_API_TOKEN }}
+        run: maturin publish -u __token__ -p ${{ secrets.PYPI_API_TOKEN }}
 
   macos:
     runs-on: ${{ matrix.platform.runner }}
@@ -151,15 +150,14 @@ jobs:
           working-directory: BinaryOptionsToolsV2 # Confirm this path is correct
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter
-          sccache: 'true'
+          sccache: "true"
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
           name: wheels-macos-${{ matrix.platform.target }}
           path: BinaryOptionsToolsV2/dist
       - name: Publish
-        run:
-          maturin publish -u __token__ -p ${{ secrets.PYPI_API_TOKEN }}
+        run: maturin publish -u __token__ -p ${{ secrets.PYPI_API_TOKEN }}
 
   sdist:
     runs-on: ubuntu-latest
@@ -201,6 +199,5 @@ jobs:
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-        run: 
-          uv pip install --upgrade twine
+        run: uv pip install --upgrade twine
           twine upload --skip-existing *
