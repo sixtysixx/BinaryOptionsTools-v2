@@ -22,7 +22,6 @@ pub enum MessageInfo {
     UpdateClosedDeals,
     SuccessopenOrder,
     // UpdateCharts,
-    
     SubscribeSymbol,
     LoadHistoryPeriod,
     FailopenOrder,
