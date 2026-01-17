@@ -366,6 +366,63 @@ impl RawPocketOption {
         Ok(serde_json::to_string(&deals).map_err(BinaryErrorPy::from)?)
     }
 
+    pub fn get_pending_deals<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        future_into_py(py, async move {
+            let deals = client.get_pending_deals().await;
+            Python::attach(|py| {
+                serde_json::to_string(&deals)
+                    .map_err(BinaryErrorPy::from)?
+                    .into_py_any(py)
+            })
+        })
+    }
+
+    pub fn get_pending_deal<'py>(
+        &self,
+        py: Python<'py>,
+        deal_id: String,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        future_into_py(py, async move {
+            let uuid = Uuid::parse_str(&deal_id).map_err(BinaryErrorPy::from)?;
+            let deal = client.get_pending_deal(uuid).await;
+            Python::attach(|py| {
+                serde_json::to_string(&deal)
+                    .map_err(BinaryErrorPy::from)?
+                    .into_py_any(py)
+            })
+        })
+    }
+
+    pub fn open_pending_order<'py>(
+        &self,
+        py: Python<'py>,
+        open_type: u32,
+        amount: f64,
+        asset: String,
+        open_time: u32,
+        open_price: f64,
+        timeframe: u32,
+        min_payout: u32,
+        command: u32,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        future_into_py(py, async move {
+            let res = client
+                .open_pending_order(
+                    open_type, amount, asset, open_time, open_price, timeframe, min_payout, command,
+                )
+                .await
+                .map_err(BinaryErrorPy::from)?;
+            Python::attach(|py| {
+                serde_json::to_string(&res)
+                    .map_err(BinaryErrorPy::from)?
+                    .into_py_any(py)
+            })
+        })
+    }
+
     pub async fn payout(&self) -> PyResult<String> {
         // Work in progress - this feature is not yet implemented in the new API
         match self.client.assets().await {
