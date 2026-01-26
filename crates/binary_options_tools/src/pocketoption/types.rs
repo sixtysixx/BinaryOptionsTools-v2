@@ -64,12 +64,7 @@ impl ServerTime {
 
         // Calculate offset: server time - local time
         let offset_seconds = server_timestamp - local_timestamp;
-        // Convert to Duration, handling negative values properly
-        if offset_seconds >= 0.0 {
-            self.offset = Duration::milliseconds((offset_seconds * 1000.0) as i64);
-        } else {
-            self.offset = Duration::milliseconds(-((offset_seconds.abs() * 1000.0) as i64));
-        }
+        self.offset = Duration::milliseconds((offset_seconds * 1000.0) as i64);
     }
 
     /// Convert local time to estimated server time
@@ -103,7 +98,7 @@ impl ServerTime {
     pub fn get_server_time(&self) -> f64 {
         let now = Utc::now();
         let elapsed = now.signed_duration_since(self.last_updated);
-        self.last_server_time + elapsed.num_seconds() as f64
+        self.last_server_time + elapsed.num_milliseconds() as f64 / 1000.0
     }
 
     /// Check if the server time data is stale (older than 30 seconds)
