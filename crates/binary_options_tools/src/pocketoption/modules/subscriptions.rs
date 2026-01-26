@@ -10,6 +10,7 @@ use binary_options_tools_core_pre::{
 use core::fmt;
 use futures_util::stream::unfold;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::{select, sync::oneshot};
@@ -332,7 +333,7 @@ impl ApiModule<State> for SubscriptionsApiModule {
                                 }
                                 let (stream_sender, stream_receiver) = bounded_async(MAX_CHANNEL_CAPACITY);
                                 if let Err(e) = self.add_subscription(asset.clone(), stream_sender).await {
-                                    let _ = responder.send(Err(PocketError::General(e)));
+                                    let _ = responder.send(Err(e));
                                     continue;
                                 }
 
@@ -396,7 +397,7 @@ impl ApiModule<State> for SubscriptionsApiModule {
                                                 let _ = responder.send(Ok(candles));
                                             }
                                             Err(e) => {
-                                                let _ = responder.send(Err(PocketError::General(e.to_string())));
+                                                let _ = responder.send(Err(e.into()));
                                             }
                                         }
                                     }

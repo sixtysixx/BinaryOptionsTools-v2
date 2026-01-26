@@ -51,8 +51,6 @@ pub struct State {
     pub raw_validators: SyncRwLock<HashMap<Uuid, Arc<Validator>>>,
     /// Active subscriptions mapped by subscription symbol
     pub active_subscriptions: RwLock<HashMap<String, AsyncSender<SubscriptionEvent>>>,
-    /// Active history requests
-    pub histories: RwLock<Vec<(String, u32, Uuid)>>,
     /// Sinks for raw module
     pub raw_sinks: RwLock<HashMap<Uuid, Arc<AsyncSender<Arc<Message>>>>>,
     /// Keep alive messages for raw module
@@ -117,7 +115,6 @@ impl StateBuilder {
             trade_state: Arc::new(TradeState::default()),
             raw_validators: SyncRwLock::new(HashMap::new()),
             active_subscriptions: RwLock::new(HashMap::new()),
-            histories: RwLock::new(Vec::new()),
             raw_sinks: RwLock::new(HashMap::new()),
             raw_keep_alive: Arc::new(RwLock::new(HashMap::new())),
         })
