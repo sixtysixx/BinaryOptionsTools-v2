@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PocketOption WFA Quantitative Trading Bot
 // @namespace    https://github.com/ChipaDevTeam/BinaryOptionsTools-v2
-// @version      1.0.0
+// @version      1.0.1
 // @description  Intercepts WebSocket stream, executes Walk Forward Analysis (WFA) strategy engine (HMA, RSI, RoC, MFI, ATR), and automates trading with Shadow DOM GUI & Trailing SL/TP.
 // @author       Senior Quantitative Developer
 // @match        https://pocketoption.com/*
@@ -84,6 +84,28 @@
     }
   };
 
+  // Helper to extract numeric balance value from various payload structures
+  function extractBalanceValue(data) {
+    if (data === null || data === undefined) return null;
+    if (typeof data === 'number' && !isNaN(data)) return data;
+    if (typeof data === 'string' && !isNaN(Number(data))) return Number(data);
+    if (typeof data === 'object') {
+      if (data.balance !== undefined && !isNaN(Number(data.balance))) {
+        return Number(data.balance);
+      }
+      if (State.isDemo && data.demoBalance !== undefined && !isNaN(Number(data.demoBalance))) {
+        return Number(data.demoBalance);
+      }
+      if (!State.isDemo && data.realBalance !== undefined && !isNaN(Number(data.realBalance))) {
+        return Number(data.realBalance);
+      }
+      if (data.amount !== undefined && !isNaN(Number(data.amount))) {
+        return Number(data.amount);
+      }
+    }
+    return null;
+  }
+
   // =========================================================================
   // 2. WEBSOCKET MONKEY-PATCHING & SSID / PAYLOAD INTERCEPTION
   // =========================================================================
@@ -133,6 +155,9 @@
             State.isDemo = parsed.data.isDemo !== undefined ? Boolean(parsed.data.isDemo) : true;
             bus.emit('auth:captured', { ssid: State.ssid, uid: State.uid, isDemo: State.isDemo });
             console.log('[PO-WFA-Bot] SSID Captured:', State.ssid.substring(0, 30) + '...');
+
+            // Request balance actively upon auth
+            setTimeout(() => requestBalance(), 1000);
           }
 
           // Intercept active symbol changes
@@ -160,20 +185,20 @@
         if (parsed) {
           bus.emit('ws:message', parsed);
 
-          // 1. Balance update
-          if (parsed.event === 'balance' || parsed.event === 'updateBalance') {
-            const bal = typeof parsed.data === 'number' ? parsed.data : (parsed.data ? parsed.data.balance : null);
-            if (bal !== null && !isNaN(bal)) {
+          // 1. Comprehensive Balance update interception
+          const balanceEvents = ['balance', 'updateBalance', 'getBalance', 'auth', 'successAuth', 'updateUser', 'user', 'profile'];
+          if (balanceEvents.includes(parsed.event) && parsed.data) {
+            const bal = extractBalanceValue(parsed.data);
+            if (bal !== null) {
               bus.emit('balance:updated', bal);
             }
           }
 
-          // 2. Stream price ticks (updateStream, updateHistory, updateHistoryNewFast, updateHistoryNew, loadHistoryPeriod, history)
+          // 2. Stream price ticks
           const tickEvents = ['updateStream', 'updateHistory', 'updateHistoryNewFast', 'updateHistoryNew', 'loadHistoryPeriod', 'history'];
           if (tickEvents.includes(parsed.event) && parsed.data) {
             let symbol, time, price;
 
-            // Robust array parsing (handles [symbol, timestamp, price], [[timestamp, price]], or [{time, price}])
             if (Array.isArray(parsed.data)) {
               if (parsed.data.length >= 3 && typeof parsed.data[0] === 'string' && typeof parsed.data[2] === 'number') {
                 symbol = parsed.data[0];
@@ -183,10 +208,8 @@
                   bus.emit('tick:received', { symbol: State.currentAsset, time: Number(time) || Date.now() / 1000, price: Number(price) });
                 }
               } else {
-                // Array of ticks/candles or nested array tuples
                 parsed.data.forEach(item => {
                   if (Array.isArray(item)) {
-                    // Tuple formats: [symbol, time, price] or [time, price]
                     let t, p, s;
                     if (item.length >= 3 && typeof item[0] === 'string') {
                       s = item[0];
@@ -211,7 +234,6 @@
                 });
               }
             } else if (typeof parsed.data === 'object') {
-              // Object format
               symbol = parsed.data.symbol || parsed.data.asset || State.currentAsset;
               time = parsed.data.time || parsed.data.timestamp || Date.now() / 1000;
               price = parsed.data.price !== undefined ? parsed.data.price : parsed.data.close;
@@ -219,7 +241,6 @@
               if (symbol === State.currentAsset && price !== undefined && !isNaN(Number(price))) {
                 bus.emit('tick:received', { symbol: State.currentAsset, time: Number(time), price: Number(price) });
               } else if (parsed.data.history && Array.isArray(parsed.data.history)) {
-                // Historical array envelope
                 parsed.data.history.forEach(item => {
                   if (Array.isArray(item)) {
                     const t = item.length >= 2 ? item[0] : Date.now() / 1000;
@@ -258,11 +279,13 @@
           if (parsed.event === 'successopenOrder') {
             console.log('[PO-WFA-Bot] Order placed successfully:', parsed.data);
             bus.emit('trade:opened', parsed.data);
+            setTimeout(() => requestBalance(), 1000);
           } else if (parsed.event === 'failopenOrder') {
             console.warn('[PO-WFA-Bot] Order placement failed:', parsed.data);
             bus.emit('trade:failed', parsed.data);
           } else if (parsed.event === 'updateClosedDeals' || parsed.event === 'closeDeal') {
             bus.emit('trade:closed', parsed.data);
+            setTimeout(() => requestBalance(), 1000);
           }
         }
       } catch (err) {
@@ -281,10 +304,15 @@
       console.error('[PO-WFA-Bot] Cannot send frame: WebSocket is not open.');
       return false;
     }
-    const messageStr = `42${JSON.stringify([eventName, dataPayload])}`;
+    const messageStr = dataPayload !== undefined ? `42${JSON.stringify([eventName, dataPayload])}` : `42${JSON.stringify([eventName])}`;
     State.activeSocket.send(messageStr);
     console.log(`[PO-WFA-Bot] Sent WS Frame: ${eventName}`, dataPayload);
     return true;
+  }
+
+  // Active Balance Request trigger
+  function requestBalance() {
+    sendWsFrame('getBalance');
   }
 
   // Programmatic Order Placement Helper
@@ -303,6 +331,13 @@
     console.log(`[PO-WFA-Bot] Executing ${action.toUpperCase()} order on ${State.currentAsset}:`, payload);
     return sendWsFrame('openOrder', payload);
   }
+
+  // Periodic Balance Polling Interval (every 15 seconds)
+  setInterval(() => {
+    if (State.activeSocket && State.activeSocket.readyState === NativeWebSocket.OPEN) {
+      requestBalance();
+    }
+  }, 15000);
 
   // =========================================================================
   // 3. DOM & UI MANAGEMENT (SHADOW DOM + AUTO CHART SWITCHER)
@@ -1003,6 +1038,7 @@
     bus,
     executeTrade,
     sendWsFrame,
+    requestBalance,
     initGUI,
     ensureLineChartView,
     evaluateWFAEngine,
