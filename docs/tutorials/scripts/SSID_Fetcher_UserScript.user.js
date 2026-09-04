@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         BinaryOptionsTools SSID Extractor
 // @namespace    SixsBinaryOptionsSSIDFetcher
-// @version      3.0
+// @version      3.1
 // @description  Extract SSID/credentials for PocketOption and CloseOption for BinaryOptionsToolsV2 - use Violentmonkey/Tampermonkey menu to extract and copy
 // @author       Six
 // @match        *://pocketoption.com/*
@@ -13,7 +13,7 @@
 // @grant        GM_notification
 // @grant        GM_getValue
 // @grant        GM_setValue
-// @run-at       document-idle
+// @run-at       document-start
 // ==/UserScript==
 
 (function() {
@@ -44,8 +44,9 @@
     // Extract SSID from intercepted auth message
     function extractPocketOptionSsid(authData) {
         try {
-            // Auth message format: 42["auth",{"token":"...","isDemo":true/false,...}]
-            const match = authData.match(/^42\["auth",(.+)\]$/);
+            // Auth message format: 42["auth",{"session":"...","isDemo":1,"uid":123,"platform":2,"isFastHistory":true,"isOptimized":true}]
+            // Handle potential whitespace and multiple concatenated messages
+            const match = authData.match(/42\["auth",\s*(\{.+?\})\s*\]/);
             if (!match) return null;
 
             const payload = JSON.parse(match[1]);
@@ -57,7 +58,7 @@
             // PocketOption SSID format: token|isDemo
             return `${token}|${demo ? '1' : '0'}`;
         } catch (e) {
-            console.error('[PO SSID] Failed to parse auth message:', e);
+            console.error('[PO SSID] Failed to parse auth message:', e, 'Data:', authData.substring(0, 200));
             return null;
         }
     }
@@ -105,63 +106,84 @@
 
     // ==================== WEBSOCKET HOOKING ====================
 
-    // Hook WebSocket to intercept auth message (PocketOption)
+    // Hook a single WebSocket instance
+    function hookSocket(socket, url) {
+        if (socket._hooked) return;
+        socket._hooked = true;
+
+        try {
+            socket._interceptUrl = url.toString();
+        } catch (e) {}
+
+        const originalSend = socket.send;
+        socket.send = function(data) {
+            const result = originalSend.apply(this, arguments);
+
+            const rawSocketUrl = this.url || this._interceptUrl || '';
+            
+            // Skip events-po.com (PocketOption analytics)
+            let socketHost = '';
+            try {
+                socketHost = new URL(rawSocketUrl, window.location.href).hostname.toLowerCase();
+            } catch (e) {}
+            if (socketHost === 'events-po.com' || socketHost.endsWith('.events-po.com')) {
+                return result;
+            }
+
+            // Log ALL PocketOption WebSocket traffic for debugging
+            if (platform === 'pocketoption' && typeof data === 'string') {
+                console.log('[PO SSID] OUTGOING:', data.substring(0, 500));
+                
+                // Check for auth in outgoing messages
+                if (data.includes('"auth"')) {
+                    const match = data.match(/42\["auth",\s*(\{.+?\})\s*\]/);
+                    if (match) {
+                        pocketOptionAuthMessage = match[0];
+                        pocketOptionSsid = extractPocketOptionSsid(match[0]);
+                        if (pocketOptionSsid) {
+                            console.log('[PO SSID] Auth intercepted (send), SSID ready:', pocketOptionSsid.substring(0, 20) + '...');
+                        }
+                    }
+                }
+            }
+
+            // Log CloseOption events for debugging
+            if (platform === 'closeoption' && typeof data === 'string' && data.startsWith('42[')) {
+                console.log('[CO SSID] Outgoing event:', data.substring(0, 100));
+            }
+
+            return result;
+        };
+
+        // Also hook onmessage to catch incoming PocketOption auth
+        const originalOnMessage = socket.onmessage;
+        socket.onmessage = function(event) {
+            if (platform === 'pocketoption' && typeof event.data === 'string') {
+                console.log('[PO SSID] INCOMING:', event.data.substring(0, 500));
+                
+                // Check for auth in incoming messages (may be concatenated)
+                if (event.data.includes('"auth"')) {
+                    const match = event.data.match(/42\["auth",\s*(\{.+?\})\s*\]/);
+                    if (match) {
+                        pocketOptionAuthMessage = match[0];
+                        pocketOptionSsid = extractPocketOptionSsid(match[0]);
+                        if (pocketOptionSsid) {
+                            console.log('[PO SSID] Auth received (onmessage), SSID ready:', pocketOptionSsid.substring(0, 20) + '...');
+                        }
+                    }
+                }
+            }
+            if (originalOnMessage) originalOnMessage.call(this, event);
+        };
+    }
+
+    // Hook WebSocket constructor
     function hookWebSocket() {
         const OriginalWebSocket = window.WebSocket;
 
         window.WebSocket = function(url, protocols) {
             const socket = new OriginalWebSocket(url, protocols);
-
-            try {
-                socket._interceptUrl = url.toString();
-            } catch (e) {}
-
-            const originalSend = socket.send;
-            socket.send = function(data) {
-                const result = originalSend.apply(this, arguments);
-
-                const rawSocketUrl = this.url || this._interceptUrl || '';
-                const socketUrl = rawSocketUrl.toLowerCase();
-
-                // Skip events-po.com (PocketOption analytics)
-                let socketHost = '';
-                try {
-                    socketHost = new URL(rawSocketUrl, window.location.href).hostname.toLowerCase();
-                } catch (e) {}
-                if (socketHost === 'events-po.com' || socketHost.endsWith('.events-po.com')) {
-                    return result;
-                }
-
-                // Intercept PocketOption auth messages
-                if (platform === 'pocketoption' && typeof data === 'string' && data.startsWith('42["auth",')) {
-                    pocketOptionAuthMessage = data;
-                    pocketOptionSsid = extractPocketOptionSsid(data);
-                    if (pocketOptionSsid) {
-                        console.log('[PO SSID] Auth intercepted, SSID ready:', pocketOptionSsid.substring(0, 20) + '...');
-                    }
-                }
-
-                // Log CloseOption events for debugging
-                if (platform === 'closeoption' && typeof data === 'string' && data.startsWith('42[')) {
-                    console.log('[CO SSID] Outgoing event:', data.substring(0, 100));
-                }
-
-                return result;
-            };
-
-            // Also hook onmessage to catch incoming PocketOption auth
-            const originalOnMessage = socket.onmessage;
-            socket.onmessage = function(event) {
-                if (platform === 'pocketoption' && typeof event.data === 'string' && event.data.startsWith('42["auth",')) {
-                    pocketOptionAuthMessage = event.data;
-                    pocketOptionSsid = extractPocketOptionSsid(event.data);
-                    if (pocketOptionSsid) {
-                        console.log('[PO SSID] Auth received, SSID ready:', pocketOptionSsid.substring(0, 20) + '...');
-                    }
-                }
-                if (originalOnMessage) originalOnMessage.call(this, event);
-            };
-
+            hookSocket(socket, url);
             return socket;
         };
 
@@ -178,7 +200,42 @@
         window.WebSocket.prototype = OriginalWebSocket.prototype;
         window.WebSocket.prototype.constructor = window.WebSocket;
 
-        console.log(`[SSID] WebSocket hooked for ${platform}, waiting for auth...`);
+        console.log(`[SSID] WebSocket constructor hooked for ${platform}`);
+    }
+
+    // Scan for existing WebSocket instances on the page
+    function scanExistingWebSockets() {
+        // Check for WebSocket instances stored in common places
+        const checkObj = (obj, path) => {
+            if (!obj || typeof obj !== 'object') return;
+            if (obj instanceof WebSocket) {
+                console.log('[PO SSID] Found existing WebSocket at:', path);
+                hookSocket(obj, obj.url || 'unknown');
+            }
+            // Recursively check properties (but avoid circular refs)
+            const seen = new WeakSet();
+            const recurse = (o, p) => {
+                if (!o || typeof o !== 'object' || seen.has(o)) return;
+                seen.add(o);
+                for (const key of Object.keys(o)) {
+                    const val = o[key];
+                    if (val instanceof WebSocket) {
+                        console.log('[PO SSID] Found existing WebSocket at:', p + '.' + key);
+                        hookSocket(val, val.url || 'unknown');
+                    } else if (val && typeof val === 'object') {
+                        recurse(val, p + '.' + key);
+                    }
+                }
+            };
+            recurse(obj, path);
+        };
+
+        // Check common global objects that might hold WebSocket references
+        checkObj(window, 'window');
+        checkObj(window.__PO_WS__, 'window.__PO_WS__');
+        checkObj(window.socket, 'window.socket');
+        checkObj(window.ws, 'window.ws');
+        checkObj(window.websocket, 'window.websocket');
     }
 
     // ==================== CLIPBOARD & NOTIFICATIONS ====================
@@ -228,6 +285,19 @@
                 } catch (e) {
                     notify('PocketOption SSID', 'Failed to copy to clipboard', 'error');
                 }
+            });
+
+            // Debug command for PocketOption
+            GM_registerMenuCommand('Debug: Show PocketOption WebSocket Traffic', () => {
+                console.log('[PO SSID] Last auth message:', pocketOptionAuthMessage);
+                console.log('[PO SSID] Extracted SSID:', pocketOptionSsid);
+                notify('PocketOption Debug', 'Check console for WebSocket traffic', 'info');
+            });
+
+            // Force re-scan for WebSockets
+            GM_registerMenuCommand('Debug: Re-scan for WebSockets', () => {
+                scanExistingWebSockets();
+                notify('PocketOption Debug', 'Re-scanned for WebSocket instances', 'info');
             });
         }
 
@@ -279,9 +349,22 @@
             }
         }
 
+        // For PocketOption, scan for existing WebSocket instances
+        if (platform === 'pocketoption') {
+            // Scan immediately
+            scanExistingWebSockets();
+            
+            // Scan again after a delay (in case WebSocket is created later)
+            setTimeout(scanExistingWebSockets, 1000);
+            setTimeout(scanExistingWebSockets, 3000);
+            
+            console.log('[PO SSID] Initialization complete, waiting for auth message...');
+        }
+
         console.log(`[SSID] Ready for ${platform}. Use Violentmonkey/Tampermonkey menu to extract credentials.`);
     }
 
+    // Run at document-start to catch early WebSocket creation
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
     } else {
