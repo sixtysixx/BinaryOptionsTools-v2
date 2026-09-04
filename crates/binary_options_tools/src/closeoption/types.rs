@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use super::error::CloseOptionError;
 use std::collections::HashMap;
 
 /// Asset information from CloseOption

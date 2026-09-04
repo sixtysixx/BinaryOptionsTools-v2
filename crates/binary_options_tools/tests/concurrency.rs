@@ -5,7 +5,6 @@ use std::sync::Arc;
 use tokio::time::{timeout, Duration};
 use uuid::Uuid;
 
-use binary_options_tools_core::traits::ApiModule;
 
 mod common {
     include!("common/mod.rs");

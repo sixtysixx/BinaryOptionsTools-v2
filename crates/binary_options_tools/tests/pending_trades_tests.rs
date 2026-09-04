@@ -100,16 +100,6 @@ fn create_socket_io_text_message(event: &str, data: &serde_json::Value) -> Strin
 }
 
 /// Creates a binary message with JSON data
-fn create_binary_message(data: &serde_json::Value) -> Message {
-    Message::Binary(serde_json::to_vec(data).unwrap().into())
-}
-
-/// Creates a text message with JSON data
-fn create_text_message(data: &serde_json::Value) -> Message {
-    Message::Text(serde_json::to_string(data).unwrap().into())
-}
-
-// ============== Tests for PendingTradesHandle::open_pending_order ==============
 
 #[tokio::test]
 async fn test_open_pending_order_success_integrated() {

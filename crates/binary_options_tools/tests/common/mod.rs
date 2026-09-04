@@ -88,43 +88,8 @@ pub fn create_test_fail(asset: &str, amount: Decimal) -> FailOpenOrder {
 }
 
 // Helper to send a message to the module's message receiver
-async fn send_message_to_module(msg: Message, sender: &AsyncSender<Message>) {
-    let _ = sender.send(msg).await;
-}
 
 // Helper to create message channels and module
-async fn setup_module_with_msg_tx() -> (
-    Arc<State>,
-    TradesHandle,
-    AsyncSender<Command>,
-    AsyncSender<Arc<Message>>, // This is msg_tx to send TO module
-    AsyncReceiver<Message>,    // This is ws_rx to read messages sent TO WebSocket
-) {
-    let state = create_mock_state();
-
-    let (cmd_tx, cmd_rx) = kanal::bounded_async::<Command>(100);
-    let (cmd_resp_tx, cmd_resp_rx) = kanal::bounded_async::<CommandResponse>(100);
-    let (msg_tx, msg_rx) = kanal::bounded_async::<Arc<Message>>(100);
-    let (ws_tx, ws_rx) = kanal::bounded_async::<Message>(100);
-    let (_runner_tx, _runner_rx) = kanal::bounded_async::<RunnerCommand>(1);
-
-    let mut module = TradesApiModule::new(
-        state.clone(),
-        cmd_rx,
-        cmd_resp_tx,
-        msg_rx,
-        ws_tx,
-        _runner_tx,
-    );
-
-    let handle = TradesApiModule::create_handle(cmd_tx.clone(), cmd_resp_rx);
-
-    tokio::spawn(async move {
-        let _ = module.run().await;
-    });
-
-    (state, handle, cmd_tx, msg_tx, ws_rx)
-}
 
 // Let's create a more flexible setup that returns all necessary channels
 pub struct TestSetup {

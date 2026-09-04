@@ -3,7 +3,7 @@ use url::Url;
 
 use binary_options_tools_core::connector::{ConnectorError, ConnectorResult};
 use crate::closeoption::error::CloseOptionError;
-use crate::closeoption::types::socket_io::{parse_frame, SocketIoFrame, SocketIoMessageType};
+use crate::closeoption::types::socket_io::{parse_frame, SocketIoFrame};
 
 /// Threshold for distinguishing millisecond timestamps from second timestamps.
 /// 1_000_000_000_000.0 (~year 33658 in seconds) is far beyond any valid second-based
@@ -279,6 +279,7 @@ pub fn parse_socket_io_message(text: &str) -> Result<Vec<SocketIoFrame>, CloseOp
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::closeoption::types::socket_io::SocketIoMessageType;
 
     #[test]
     fn test_normalize_timestamp_seconds() {

@@ -524,7 +524,6 @@ mod integration_tests {
 
 #[cfg(test)]
 mod raw_handler_tests {
-    use super::*;
 
     #[test]
     fn test_raw_handler_methods_exist() {
@@ -539,7 +538,6 @@ mod raw_handler_tests {
 
 #[cfg(test)]
 mod subscription_stream_tests {
-    use super::*;
 
     #[test]
     fn test_subscription_stream_methods_exist() {
@@ -551,7 +549,6 @@ mod subscription_stream_tests {
 
 #[cfg(test)]
 mod uniffi_scaffolding_tests {
-    use super::*;
 
     #[test]
     fn test_uniffi_scaffolding_generated() {
@@ -572,7 +569,6 @@ mod uniffi_scaffolding_tests {
 
 #[cfg(test)]
 mod f64_to_decimal_tests {
-    use super::*;
     use binary_options_tools::utils::f64_to_decimal;
     use rust_decimal::Decimal;
 
