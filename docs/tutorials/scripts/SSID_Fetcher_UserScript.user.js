@@ -35,10 +35,10 @@
 
     // Platform-specific state
     const platform = detectPlatform();
+    const DEBUG = false; // Set to true to log WebSocket traffic/credentials to the console
     let pocketOptionSsid = null;
     let pocketOptionAuthMessage = null;
     let closeOptionCreds = null;
-
     // ==================== POCKETOPTION ====================
 
     // Extract SSID from intercepted auth message
@@ -146,7 +146,7 @@
                     const sid = urlObj.searchParams.get('sid');
                     if (sid && !window._coSid) {
                         window._coSid = sid;
-                        console.log('[CO SSID] Extracted sid from WebSocket URL:', sid);
+                        if (DEBUG) console.log('[CO SSID] Extracted sid from WebSocket URL:', sid.substring(0, 6) + '...');
                     }
                 } catch (e) {}
             }
@@ -160,8 +160,8 @@
                 return result;
             }
 
-            // Log ALL PocketOption WebSocket traffic for debugging
-            if (platform === 'pocketoption' && typeof data === 'string') {
+            // Log ALL PocketOption WebSocket traffic for debugging (DEBUG builds only)
+            if (DEBUG && platform === 'pocketoption' && typeof data === 'string') {
                 console.log('[PO SSID] OUTGOING:', data.substring(0, 500));
                 
                 // Check for auth in outgoing messages
@@ -171,7 +171,7 @@
                         pocketOptionAuthMessage = match[0];
                         pocketOptionSsid = extractPocketOptionSsid(match[0]);
                         if (pocketOptionSsid) {
-                            console.log('[PO SSID] Auth intercepted (send), SSID ready:', pocketOptionSsid.substring(0, 50) + '...');
+                            if (DEBUG) console.log('[PO SSID] Auth intercepted (send), SSID ready:', pocketOptionSsid.substring(0, 12) + '...');
                         }
                     }
                 }
@@ -201,8 +201,8 @@
                 }
             }
 
-            // Log CloseOption events for debugging
-            if (platform === 'closeoption' && typeof data === 'string' && data.startsWith('42[')) {
+            // Log CloseOption events for debugging (DEBUG builds only)
+            if (DEBUG && platform === 'closeoption' && typeof data === 'string' && data.startsWith('42[')) {
                 console.log('[CO SSID] Outgoing event:', data.substring(0, 100));
             }
 
@@ -213,7 +213,7 @@
         const originalOnMessage = socket.onmessage;
         socket.onmessage = function(event) {
             if (platform === 'pocketoption' && typeof event.data === 'string') {
-                console.log('[PO SSID] INCOMING:', event.data.substring(0, 500));
+                if (DEBUG) console.log('[PO SSID] INCOMING:', event.data.substring(0, 500));
                 
                 // Check for auth in incoming messages (may be concatenated)
                 if (event.data.includes('"auth"')) {
@@ -222,7 +222,7 @@
                         pocketOptionAuthMessage = match[0];
                         pocketOptionSsid = extractPocketOptionSsid(match[0]);
                         if (pocketOptionSsid) {
-                            console.log('[PO SSID] Auth received (onmessage), SSID ready:', pocketOptionSsid.substring(0, 50) + '...');
+                            if (DEBUG) console.log('[PO SSID] Auth received (onmessage), SSID ready:', pocketOptionSsid.substring(0, 12) + '...');
                         }
                     }
                 }
@@ -433,14 +433,14 @@
     // ==================== INITIALIZATION ====================
 
     function init() {
-        hookWebSocket();
+        // WebSocket hooking happens immediately at document-start (see below)
         
         // For CloseOption, also try to extract credentials immediately
         if (platform === 'closeoption') {
             const creds = extractCloseOptionCreds();
             if (creds) {
                 closeOptionCreds = creds;
-                console.log('[CO SSID] Credentials found on load:', creds.substring(0, 30) + '...');
+                if (DEBUG) console.log('[CO SSID] Credentials found on load:', creds.substring(0, 30) + '...');
             } else {
                 console.log('[CO SSID] Credentials not found yet, will try on menu click');
             }
@@ -461,6 +461,8 @@
         console.log(`[SSID] Ready for ${platform}. Use Violentmonkey/Tampermonkey menu to extract credentials.`);
     }
 
+    // Hook WebSocket immediately at document-start so early connections are captured
+    hookWebSocket();
     // Run at document-start to catch early WebSocket creation
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);

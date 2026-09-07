@@ -5,14 +5,11 @@ use std::sync::Arc;
 use tokio::time::{timeout, Duration};
 use uuid::Uuid;
 
-
 mod common {
     include!("common/mod.rs");
 }
 
-use common::{
-    create_test_deal, create_test_fail, create_test_setup,
-};
+use common::{create_test_deal, create_test_fail, create_test_setup};
 #[tokio::test]
 async fn test_concurrent_identical_trades_hammer() {
     let setup = create_test_setup().await;

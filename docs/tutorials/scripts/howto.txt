@@ -10,5 +10,5 @@ Installation steps
    - Use the manager’s "Add new script" or "Import" option and paste the script, or open the saved .user.js file in the browser; the manager should prompt to install.
 3. Verify it’s enabled
    - Ensure the script is active for pocketoption.com/closeoption.com in the manager’s list.
-4. Go to the trading terminal and click the userscript extension
-   - Click `Get SSID` and it should copy to your clipboard
+4. Go to the trading terminal and open the userscript manager menu
+   - Click `Extract & Copy PocketOption SSID` (on PocketOption) or `Extract & Copy CloseOption Credentials` (on CloseOption) and the credentials will be copied to your clipboard

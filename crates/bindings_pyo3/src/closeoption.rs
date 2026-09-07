@@ -54,13 +54,14 @@ impl RawCloseOption {
                 Ok(s) => s,
                 Err(e) => return Err(e),
             };
-            let client = tokio::time::timeout(
-                Duration::from_secs(CONNECTION_TIMEOUT_SECS),
-                CloseOption::from_state(state),
-            )
-            .await
-            .map_err(|_| BinaryErrorPy::NotAllowed("Connection timeout".into()))?
-            .map_err(BinaryErrorPy::from)?;
+            let timeout = config
+                .as_ref()
+                .map(|cfg| cfg.inner.connection_initialization_timeout)
+                .unwrap_or(Duration::from_secs(CONNECTION_TIMEOUT_SECS));
+            let client = tokio::time::timeout(timeout, CloseOption::from_state(state))
+                .await
+                .map_err(|_| BinaryErrorPy::NotAllowed("Connection timeout".into()))?
+                .map_err(BinaryErrorPy::from)?;
             Ok(Self { inner: client })
         })
     }

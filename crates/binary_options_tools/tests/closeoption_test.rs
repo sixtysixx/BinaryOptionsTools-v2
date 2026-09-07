@@ -1,4 +1,4 @@
-use binary_options_tools::closeoption::{CloseOption, StateBuilder};
+use binary_options_tools::closeoption::state::StateBuilder;
 
 #[tokio::test]
 async fn test_state_builder() {
@@ -180,21 +180,19 @@ async fn test_get_ticks_request_shape() {
 
 #[tokio::test]
 async fn test_get_ticks_result_parsing() {
-    use binary_options_tools::closeoption::types::{Get30MinResult, Candle};
+    use binary_options_tools::closeoption::types::Get30MinResult;
 
     let json = r#"{
-        "candles": [
+        "price": [
             {"timeStamp": 1704067200, "value": 1.1001},
             {"timeStamp": 1704067201, "value": 1.1002}
-        ],
-        "pair": "EUR/USD:AFX"
+        ]
     }"#;
 
     let result: Get30MinResult = serde_json::from_str(json).unwrap();
-    assert_eq!(result.candles.len(), 2);
-    assert_eq!(result.candles[0].time_stamp, 1704067200);
-    assert_eq!(result.candles[0].value, 1.1001);
-    assert_eq!(result.candles[1].time_stamp, 1704067201);
-    assert_eq!(result.candles[1].value, 1.1002);
-    assert_eq!(result.pair, "EUR/USD:AFX");
+    assert_eq!(result.price.len(), 2);
+    assert_eq!(result.price[0].timestamp, 1704067200);
+    assert_eq!(result.price[0].value, 1.1001);
+    assert_eq!(result.price[1].timestamp, 1704067201);
+    assert_eq!(result.price[1].value, 1.1002);
 }

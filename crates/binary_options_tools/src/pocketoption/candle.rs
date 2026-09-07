@@ -187,9 +187,7 @@ impl<'de> Deserialize<'de> for CandleItem {
                 let low = seq
                     .next_element()?
                     .ok_or_else(|| serde::de::Error::invalid_length(4, &self))?;
-                let volume = seq
-                    .next_element()?
-                    .unwrap_or(0.0);
+                let volume = seq.next_element()?.unwrap_or(0.0);
 
                 Ok(CandleItem {
                     timestamp,
@@ -424,7 +422,7 @@ impl Candle {
             ),
             None => None,
         };
-        
+
         Ok(Candle {
             symbol,
             timestamp,
@@ -441,8 +439,6 @@ impl Candle {
         })
     }
 }
-
-
 
 /// Represents the type of subscription for candle data.
 #[derive(Clone, Debug)]

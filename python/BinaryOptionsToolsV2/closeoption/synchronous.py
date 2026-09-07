@@ -2,6 +2,7 @@ import asyncio
 import json
 import threading
 import sys
+import concurrent.futures
 import warnings
 from datetime import timedelta
 from typing import Dict, List, Optional, Tuple, Union
@@ -10,6 +11,7 @@ from ..validator import Validator as Validator
 from .asynchronous import CloseOptionAsync as CloseOptionAsync
 
 if sys.version_info < (3, 10):
+
     async def anext(iterator):
         """Polyfill for anext for Python < 3.10"""
         return await iterator.__anext__()
@@ -29,9 +31,7 @@ class SyncSubscription:
 
     def __next__(self):
         if self._loop is not None and self._loop.is_running():
-            future = asyncio.run_coroutine_threadsafe(
-                anext(self.subscription), self._loop
-            )
+            future = asyncio.run_coroutine_threadsafe(anext(self.subscription), self._loop)
             try:
                 return future.result()
             except StopAsyncIteration:
@@ -48,9 +48,7 @@ class SyncCandleLiveIterator:
         return self
 
     def __next__(self):
-        future = asyncio.run_coroutine_threadsafe(
-            self._get_next(), self.loop
-        )
+        future = asyncio.run_coroutine_threadsafe(self._get_next(), self.loop)
         try:
             return future.result()
         except StopAsyncIteration:
@@ -58,7 +56,6 @@ class SyncCandleLiveIterator:
 
     async def _get_next(self):
         return await anext(self.async_gen)
-
 
 
 class RawHandlerSync:
@@ -86,7 +83,7 @@ class RawHandlerSync:
         """Wait for a specific event from the server."""
         return self._run(self._handler.wait_for(event, timeout))
 
-    def subscribe(self, event: str) -> 'SyncRawSubscription':
+    def subscribe(self, event: str) -> "SyncRawSubscription":
         """Subscribe to a specific event type."""
         sub = self._run(self._handler.subscribe(event))
         return SyncRawSubscription(sub)
@@ -120,9 +117,7 @@ class SyncRawSubscription:
 
     def __next__(self):
         if self._loop is not None and self._loop.is_running():
-            future = asyncio.run_coroutine_threadsafe(
-                anext(self.subscription), self._loop
-            )
+            future = asyncio.run_coroutine_threadsafe(anext(self.subscription), self._loop)
             try:
                 return future.result()
             except StopAsyncIteration:
@@ -155,19 +150,29 @@ class CloseOption:
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
         self._closed = False
+        # Establish the connection eagerly so the constructor fails fast on bad
+        # credentials and later operations don't race an implicit first connect.
+        self._run(self._async_client.connect())
+
     def _run_loop(self):
         asyncio.set_event_loop(self._loop)
         self._loop.run_forever()
 
     def _run(self, coro):
         future = asyncio.run_coroutine_threadsafe(coro, self._loop)
+        return future.result()
+
+    def _connect(self):
+        """Run connect() with the connection initialization timeout."""
+        future = asyncio.run_coroutine_threadsafe(self._async_client.connect(), self._loop)
         try:
             return future.result(timeout=self._config.connection_initialization_timeout_secs)
-        except TimeoutError as exc:
-            raise TimeoutError("CloseOption sync operation timed out") from exc
+        except concurrent.futures.TimeoutError as exc:
+            future.cancel()
+            raise TimeoutError("CloseOption connection timed out") from exc
 
     def __enter__(self):
-        print("CloseOption: connecting...")
+        # Connection is established in __init__; no per-operation timeout applies.
         print("CloseOption: connected")
         return self
 
@@ -197,10 +202,10 @@ class CloseOption:
     def get_candles(self, asset: str, period: int, count: int = 100) -> List[dict]:
         """Get historical candles with count."""
         return self._run(self._async_client.get_candles(asset, period, count))
+
     def get_ticks(self, asset: str) -> List[dict]:
         """Get tick series for an asset."""
         return self._run(self._async_client.get_ticks(asset))
-
 
     def get_candles_live(self, asset: str, period: int) -> SyncCandleLiveIterator:
         """Get live candle updates."""
@@ -260,6 +265,7 @@ class CloseOption:
             self._async_client = None
         if self._loop and self._loop.is_running():
             self._loop.call_soon_threadsafe(self._loop.stop)
+
     def reconnect(self) -> None:
         """Reconnect to the server."""
         return self._run(self._async_client.reconnect())
