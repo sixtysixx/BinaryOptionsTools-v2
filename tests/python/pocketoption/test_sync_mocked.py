@@ -669,7 +669,7 @@ class TestCandles:
         iterator = sync_client.get_candles_live(
             "EURUSD_otc", period=60, hours=0.1, max_rows=10
         )
-        closed, forming = next(iterator)
+        closed, _forming = next(iterator)
         assert isinstance(closed, list)
         assert len(closed) > 0
 

@@ -145,7 +145,9 @@ def main():
         print("Format: token|sid|demo|public_code|hidden_code")
         print()
 
-        client = CloseOption("demo_token|demo_sid|true|demo_public|demo_hidden")
+        client = CloseOption(
+            "demo_token|demo_sid|true|demo_public|demo_hidden", connect_on_init=False
+        )
 
         methods = [
             "buy",

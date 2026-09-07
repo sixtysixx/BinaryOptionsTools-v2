@@ -33,7 +33,7 @@ async def place_trade(
         else:
             result = await client.sell(asset, amount, duration)
 
-        print(f"  Order placed successfully!")
+        print("  Order placed successfully!")
         print(f"  Result: {result}")
         return result
 

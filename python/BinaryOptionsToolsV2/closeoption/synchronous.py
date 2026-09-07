@@ -1,11 +1,8 @@
 import asyncio
-import json
 import threading
 import sys
 import concurrent.futures
-import warnings
-from datetime import timedelta
-from typing import Dict, List, Optional, Tuple, Union
+from typing import List, Optional, Union
 from ..config import Config
 from ..validator import Validator as Validator
 from .asynchronous import CloseOptionAsync as CloseOptionAsync
@@ -126,7 +123,14 @@ class SyncRawSubscription:
 
 
 class CloseOption:
-    def __init__(self, ssid: str, url: Optional[str] = None, config: Union[Config, dict, str] = None, **_):
+    def __init__(
+        self,
+        ssid: str,
+        url: Optional[str] = None,
+        config: Union[Config, dict, str] = None,
+        connect_on_init: bool = True,
+        **_,
+    ):
         """
         Initialize CloseOption synchronous client.
 
@@ -134,6 +138,9 @@ class CloseOption:
             ssid: Session ID in format "token|sid|demo|public_code|hidden_code" or JSON
             url: WebSocket URL (optional, defaults to CloseOption)
             config: Configuration object (optional)
+            connect_on_init: Whether to establish the connection eagerly in the
+                constructor (default True). Set to False to inspect the client
+                API without connecting (e.g. offline demo mode).
         """
         self._ssid = ssid
         self._url = url
@@ -150,9 +157,19 @@ class CloseOption:
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
         self._closed = False
-        # Establish the connection eagerly so the constructor fails fast on bad
-        # credentials and later operations don't race an implicit first connect.
-        self._run(self._async_client.connect())
+        if connect_on_init:
+            # Establish the connection eagerly so the constructor fails fast on bad
+            # credentials and later operations don't race an implicit first connect.
+            try:
+                self._run(self._async_client.connect())
+            except Exception:
+                # Stop the background loop and join its thread before propagating
+                # so a failed construction leaves no orphaned thread behind.
+                try:
+                    self.shutdown()
+                except Exception:
+                    pass
+                raise
 
     def _run_loop(self):
         asyncio.set_event_loop(self._loop)
@@ -261,10 +278,15 @@ class CloseOption:
             return
         self._closed = True
         if self._async_client:
-            self._run(self._async_client.shutdown())
+            try:
+                self._run(self._async_client.shutdown())
+            except Exception:
+                pass
             self._async_client = None
         if self._loop and self._loop.is_running():
             self._loop.call_soon_threadsafe(self._loop.stop)
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=5.0)
 
     def reconnect(self) -> None:
         """Reconnect to the server."""

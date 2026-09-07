@@ -30,7 +30,7 @@ def place_trade(client, asset: str, amount: float, duration: int, direction: str
         else:
             result = client.sell(asset, amount, duration)
 
-        print(f"  Order placed successfully!")
+        print("  Order placed successfully!")
         print(f"  Result: {result}")
         return result
 
@@ -61,7 +61,9 @@ def main():
         print("Running in demo mode (API structure verification only)...")
         print()
 
-        client = CloseOption("demo_token|demo_sid|true|demo_public|demo_hidden")
+        client = CloseOption(
+            "demo_token|demo_sid|true|demo_public|demo_hidden", connect_on_init=False
+        )
 
         trading_methods = ["buy", "sell", "check_win"]
         print("=== Trading API Verification ===")

@@ -13,10 +13,12 @@ use url::Url;
 
 use crate::closeoption::state::State;
 use crate::closeoption::utils::{
-    generate_key, get_tls_config, init_crypto_provider, per_url_connect_timeout,
+    generate_key, get_tls_config, init_crypto_provider, parse_auth, per_url_connect_timeout,
 };
 
 const ORIGIN: &str = "https://www.closeoption.com";
+/// Hosts authorized to receive the session token in the Authorization header.
+const TRUSTED_HOST: &str = "www.closeoption.com";
 
 #[derive(Clone)]
 pub struct CloseConnect;
@@ -63,6 +65,14 @@ impl CloseConnect {
             }));
         // Route the polling handshake through the configured proxy, mirroring the WebSocket path.
         if let Some(proxy_str) = &state.proxy {
+            let proxy_url = Url::parse(proxy_str)
+                .map_err(|e| ConnectorError::Custom(format!("Invalid proxy URL: {e}")))?;
+            // Reject credentials on clear-text proxies, mirroring the WebSocket path.
+            if parse_auth(&proxy_url).is_some() && proxy_url.scheme() != "https" {
+                return Err(ConnectorError::Custom(
+                    "Credentials not allowed on clear-text proxy".into(),
+                ));
+            }
             let proxy = reqwest::Proxy::all(proxy_str)
                 .map_err(|e| ConnectorError::Custom(format!("Invalid proxy URL: {e}")))?;
             client_builder = client_builder.proxy(proxy);
@@ -178,6 +188,15 @@ impl Connector<State> for CloseConnect {
             }
         });
 
+        // Reject plaintext ws:// targets when a token is present so the session
+        // token is never transmitted without TLS. ws:// remains allowed without
+        // a token, and wss:// behavior is unchanged.
+        if t_url.scheme() == "ws" && !state.token.is_empty() {
+            return Err(ConnectorError::Custom(
+                "ws:// target is not allowed when a token is set; use wss://".into(),
+            ));
+        }
+
         let socket = if let Some(proxy_str) = &state.proxy {
             let proxy_url = Url::parse(proxy_str)
                 .map_err(|e| ConnectorError::Custom(format!("Invalid proxy URL: {e}")))?;
@@ -208,7 +227,7 @@ impl Connector<State> for CloseConnect {
                 ))
             })?;
 
-            let auth = crate::closeoption::utils::parse_auth(&proxy_url);
+            let auth = parse_auth(&proxy_url);
             // Check if credentials are provided on clear-text proxy
             if auth.is_some() && proxy_url.scheme() != "https" {
                 return Err(ConnectorError::Custom(
@@ -348,7 +367,9 @@ impl Connector<State> for CloseConnect {
             .header("Sec-Websocket-Key", generate_key())
             .header("Sec-Websocket-Version", "13");
 
-        if !state.token.is_empty() {
+        // Forward the session token only to the trusted CloseOption endpoint;
+        // arbitrary custom URLs must not receive it.
+        if !state.token.is_empty() && target_host == TRUSTED_HOST {
             request_builder =
                 request_builder.header("Authorization", format!("Bearer {}", state.token));
         }
