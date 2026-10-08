@@ -274,7 +274,9 @@ class MockPocketOptionAsync:
 
         return iterator()
 
-    async def subscribe_ticks(self, asset, chunk_size=None, interval=None, aligned=False):
+    async def subscribe_ticks(
+        self, asset, chunk_size=None, interval=None, aligned=False
+    ):
         async def subscription():
             yield {"symbol": asset, "price": 1.11}
 
@@ -723,7 +725,6 @@ class TestStreamCandles:
         closed, forming = next(iterator)
         assert isinstance(closed, list)
         assert isinstance(forming, (dict, type(None)))
-
 
 
 class TestBalance:

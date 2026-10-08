@@ -253,14 +253,18 @@ python login_with_email_and_password.py
 ## Key Concepts
 
 ### Context Manager
+
 All examples use the context manager pattern:
+
 ```python
 with PocketOption(ssid) as api:
     # API is automatically connected and cleaned up
 ```
 
 ### Initialization Wait
+
 The synchronous client handles initialization internally, but you can add a small delay:
+
 ```python
 with PocketOption(ssid) as api:
     import time
@@ -268,13 +272,16 @@ with PocketOption(ssid) as api:
 ```
 
 ### Demo vs Real Account
+
 ```python
 if not api.is_demo():
     print("WARNING: Using REAL account!")
 ```
 
 ### Proper Cleanup
+
 The context manager handles cleanup automatically, but you can also call:
+
 ```python
 api.shutdown()
 ```
@@ -289,15 +296,16 @@ api.shutdown()
 | Iteration | `for candle in subscription` | `async for candle in subscription` |
 
 Use **async** for:
+
 - High-frequency trading
 - Multiple concurrent operations
 - Better performance with many subscriptions
 
 Use **sync** for:
+
 - Simple scripts
 - Single operations
 - Easier debugging
-
 
 ---
 

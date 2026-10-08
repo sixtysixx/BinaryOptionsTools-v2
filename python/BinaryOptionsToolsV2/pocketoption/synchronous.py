@@ -372,9 +372,7 @@ class PocketOption:
                 candles = client.candles("EURUSD_otc", 60, count=200)
             ```
         """
-        return self._run(
-            self._client.candles(asset, period, count=count, end_time=end_time)
-        )
+        return self._run(self._client.candles(asset, period, count=count, end_time=end_time))
 
     def stream_candles(
         self,
@@ -405,9 +403,7 @@ class PocketOption:
                     ...
             ```
         """
-        return self.get_candles_live(
-            asset, period, hours=history, max_rows=max_rows
-        )
+        return self.get_candles_live(asset, period, hours=history, max_rows=max_rows)
 
     def ticks(self, asset: str, seconds: int) -> List[Tuple[int, float]]:
         """Fetch historical raw ticks for an asset.
@@ -720,9 +716,7 @@ class PocketOption:
             return self._subscribe_stream("subscribe_symbol_chunked", asset, chunk_size)
         if interval is not None:
             if aligned:
-                return self._subscribe_stream(
-                    "subscribe_symbol_time_aligned", asset, interval
-                )
+                return self._subscribe_stream("subscribe_symbol_time_aligned", asset, interval)
             return self._subscribe_stream("subscribe_symbol_timed", asset, interval)
         return self._subscribe_stream("subscribe_symbol", asset)
 
@@ -901,9 +895,7 @@ class PocketOption:
         Returns:
             The first response matching the validator, as a raw string.
         """
-        return self._run(
-            self._client.raw_request(message, validator, timeout=timeout, retry=retry)
-        )
+        return self._run(self._client.raw_request(message, validator, timeout=timeout, retry=retry))
 
     def create_raw_order(self, message: str, validator: Validator) -> str:
         """Deprecated: use ``raw_request()`` instead."""

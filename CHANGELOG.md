@@ -41,7 +41,9 @@ These methods keep working (they emit `DeprecationWarning`) and forward to the r
 - Updated the JavaScript sections of the documentation (`docs/examples/javascript`, `docs/api/reference.md`, `docs/architecture/structure.md`) to match the implemented API. The previous snippets referenced an `binaryoptionstoolsv2` npm package and methods such as `getClosedDeals()` that do not exist.
 
 ## [0.2.14] - 2026-08-28
+
 ### Added
+
 - **CloseOption Support**: Added new `closeoption` module for the CloseOption binary options platform, supporting Socket.IO EIO=3 protocol on `wss://www.closeoption.com:8443`.
 - Added `CloseOptionAsync` and `CloseOption` Python clients mirroring the PocketOption API.
 - Added PyO3 bindings for CloseOption with full async method support.
@@ -341,7 +343,6 @@ These methods keep working (they emit `DeprecationWarning`) and forward to the r
 [0.2.14]: https://gitlab.chipatrade.com/chipadevorg/BinaryOptionsTools-v2/-/releases/v0.2.14
 [0.2.13]: https://gitlab.chipatrade.com/chipadevorg/BinaryOptionsTools-v2/-/releases/v0.2.13
 [0.2.12]: https://gitlab.chipatrade.com/chipadevorg/BinaryOptionsTools-v2/-/releases/v0.2.12
-[0.2.11]: https://gitlab.chipatrade.com/chipadevorg/BinaryOptionsTools-v2/-/releases/v0.2.11
 [0.2.10]: https://gitlab.chipatrade.com/chipadevorg/BinaryOptionsTools-v2/-/releases/v0.2.10
 [0.2.9]: https://gitlab.chipatrade.com/chipadevorg/BinaryOptionsTools-v2/-/releases/v0.2.9
 [0.2.8]: https://gitlab.chipatrade.com/chipadevorg/BinaryOptionsTools-v2/-/releases/v0.2.8

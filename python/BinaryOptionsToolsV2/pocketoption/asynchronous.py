@@ -475,9 +475,7 @@ class PocketOptionAsync:
             ```
         """
         if end_time is not None:
-            return json.loads(
-                await self.client.get_candles_advanced(asset, period, end_time, count)
-            )
+            return json.loads(await self.client.get_candles_advanced(asset, period, end_time, count))
         lookback_seconds = max(period, count * period)
         hours = max(0.1, lookback_seconds / 3600.0)
         gen = self.get_candles_live(asset, period, hours=hours, max_rows=count)
@@ -555,8 +553,7 @@ class PocketOptionAsync:
               For live gap-free candle feeds, use `get_candles_live()` instead.
         """
         warnings.warn(
-            "get_candles_advanced() is deprecated; "
-            "use candles(..., end_time=...) instead.",
+            "get_candles_advanced() is deprecated; use candles(..., end_time=...) instead.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -705,11 +702,7 @@ class PocketOptionAsync:
                 advanced_candles = []
 
             try:
-                recent_candles = json.loads(
-                    await asyncio.wait_for(
-                        self.client.history(asset, period), timeout=3.0
-                    )
-                )
+                recent_candles = json.loads(await asyncio.wait_for(self.client.history(asset, period), timeout=3.0))
             except Exception:
                 recent_candles = []
 
@@ -790,9 +783,7 @@ class PocketOptionAsync:
                     ...
             ```
         """
-        async for item in self.get_candles_live(
-            asset, period, hours=history, max_rows=max_rows
-        ):
+        async for item in self.get_candles_live(asset, period, hours=history, max_rows=max_rows):
             yield item
 
     async def ticks(self, asset: str, seconds: int) -> List[Tuple[int, float]]:
@@ -1366,17 +1357,11 @@ class PocketOptionAsync:
             AsyncSubscription yielding price updates.
         """
         if chunk_size is not None:
-            return AsyncSubscription(
-                await self.client.subscribe_symbol_chunked(asset, chunk_size)
-            )
+            return AsyncSubscription(await self.client.subscribe_symbol_chunked(asset, chunk_size))
         if interval is not None:
             if aligned:
-                return AsyncSubscription(
-                    await self.client.subscribe_symbol_time_aligned(asset, interval)
-                )
-            return AsyncSubscription(
-                await self.client.subscribe_symbol_timed(asset, interval)
-            )
+                return AsyncSubscription(await self.client.subscribe_symbol_time_aligned(asset, interval))
+            return AsyncSubscription(await self.client.subscribe_symbol_timed(asset, interval))
         return AsyncSubscription(await self.client.subscribe_symbol(asset))
 
     async def subscribe_symbol(self, asset: str) -> AsyncSubscription:
@@ -1695,13 +1680,9 @@ class PocketOptionAsync:
         if retry:
             if timeout is None:
                 raise ValueError("retry=True requires an explicit timeout")
-            return await self.client.create_raw_order_with_timeout_and_retry(
-                message, validator.raw_validator, timeout
-            )
+            return await self.client.create_raw_order_with_timeout_and_retry(message, validator.raw_validator, timeout)
         if timeout is not None:
-            return await self.client.create_raw_order_with_timeout(
-                message, validator.raw_validator, timeout
-            )
+            return await self.client.create_raw_order_with_timeout(message, validator.raw_validator, timeout)
         return await self.client.create_raw_order(message, validator.raw_validator)
 
     async def create_raw_order(self, message: str, validator: Validator) -> str:

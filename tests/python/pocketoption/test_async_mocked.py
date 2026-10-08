@@ -1144,9 +1144,7 @@ class TestSendRawMessage:
     @pytest.mark.asyncio
     async def test_send_raw_message_error(self, async_client, mock_raw_pocketoption):
         """Test send_raw_message when client fails."""
-        mock_raw_pocketoption.send_raw = AsyncMock(
-            side_effect=Exception("Send failed")
-        )
+        mock_raw_pocketoption.send_raw = AsyncMock(side_effect=Exception("Send failed"))
         with pytest.raises(Exception, match="Send failed"):
             await async_client.send_raw_message('42["ping"]')
 
@@ -1504,7 +1502,16 @@ class TestAsynchronousExtraCoverage:
     ):
         client = PocketOptionAsync("test_ssid")
 
-        async def mock_open(open_type, amount, asset, open_time, open_price, timeframe, min_payout, command):
+        async def mock_open(
+            open_type,
+            amount,
+            asset,
+            open_time,
+            open_price,
+            timeframe,
+            min_payout,
+            command,
+        ):
             return json.dumps({"open_time": open_time, "command": command})
 
         mock_raw_pocketoption.open_pending_order = mock_open

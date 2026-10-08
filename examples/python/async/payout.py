@@ -18,7 +18,9 @@ async def main(ssid: str):
     print(f"Single Payout: {single_payout}")
 
     # Pick specific assets out of the full mapping when you need several.
-    selected = {asset: all_payouts.get(asset) for asset in ["EURUSD_otc", "EURUSD", "AEX25"]}
+    selected = {
+        asset: all_payouts.get(asset) for asset in ["EURUSD_otc", "EURUSD", "AEX25"]
+    }
     print(f"Selected Payouts: {selected}")
 
 

@@ -8,7 +8,6 @@ infrastructure. Prototype there, productionise here.
 **[Try ChipaEditor free →](https://chipaeditor.com/?utm_source=docs&utm_medium=guide-pystrategy&utm_campaign=BinaryOptionsToolsV2&utm_content=cta)**
 :::
 
-
 Complete guide for building an advanced Pocket Option trading bot using the PyStrategy framework with async support.
 
 ## Table of Contents

@@ -385,31 +385,37 @@ python strategy_example.py
 ## Key Concepts
 
 ### Context Manager
+
 All examples use the async context manager pattern:
+
 ```python
 async with PocketOptionAsync(ssid) as api:
     # API is automatically connected and cleaned up
 ```
 
 ### Initialization Wait
+
 Always wait ~2 seconds after creating the client:
+
 ```python
 async with PocketOptionAsync(ssid) as api:
     await asyncio.sleep(2)  # Critical for connection!
 ```
 
 ### Demo vs Real Account
+
 ```python
 if not api.is_demo():
     print("WARNING: Using REAL account!")
 ```
 
 ### Proper Cleanup
+
 The context manager handles cleanup automatically, but you can also call:
+
 ```python
 await api.shutdown()
 ```
-
 
 ---
 

@@ -12,7 +12,12 @@ import pathlib
 from BinaryOptionsToolsV2.pocketoption.asynchronous import PocketOptionAsync
 from BinaryOptionsToolsV2.pocketoption.synchronous import PocketOption
 
-PACKAGE = pathlib.Path(__file__).resolve().parents[3] / "python" / "BinaryOptionsToolsV2" / "pocketoption"
+PACKAGE = (
+    pathlib.Path(__file__).resolve().parents[3]
+    / "python"
+    / "BinaryOptionsToolsV2"
+    / "pocketoption"
+)
 
 # Sync-only methods: event-loop plumbing and underlying-client accessors.
 SYNC_ONLY = {"client", "close", "config", "loop"}
@@ -46,8 +51,12 @@ def test_overlapping_methods_are_documented():
     api = _public_methods(PACKAGE / "asynchronous.py", "PocketOptionAsync")
     sync = _public_methods(PACKAGE / "synchronous.py", "PocketOption")
     for name in sorted(api & sync):
-        assert getattr(PocketOptionAsync, name).__doc__, f"PocketOptionAsync.{name} has no docstring"
-        assert getattr(PocketOption, name).__doc__, f"PocketOption.{name} has no docstring"
+        assert getattr(PocketOptionAsync, name).__doc__, (
+            f"PocketOptionAsync.{name} has no docstring"
+        )
+        assert getattr(PocketOption, name).__doc__, (
+            f"PocketOption.{name} has no docstring"
+        )
 
 
 def test_argument_taking_methods_are_documented_or_deprecated():
