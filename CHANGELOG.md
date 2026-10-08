@@ -5,6 +5,27 @@ All notable changes to BinaryOptionsTools v2 will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.16]
+
+### Added
+
+- **Simplified PocketOption client API**: the Python clients (`PocketOptionAsync`, `PocketOption`) now expose one obvious entry point per concern, each with the same Args/Returns docstring on both the async and sync clients.
+  - Market data: `candles(asset, period, count, end_time)`, `stream_candles(asset, period, count)` and `ticks(asset, seconds)`.
+  - Streaming: `subscribe_ticks(asset, *, chunk_size=None, interval=None, aligned=False)` replaces the four `subscribe_symbol*` variants.
+  - Raw protocol: `raw_request(message, validator, timeout, retry)`, `raw_stream(message, validator, timeout)` and `raw_handler(validator, keep_alive)`.
+  - Account: `payouts()` returns the payout of every asset; `payout(asset)` returns a single one.
+- Added the `Trade` model (a `dict` subclass with attribute access plus `result`/`profit`/`is_win`/`is_loss`/`is_draw`/`is_settled`), returned by `buy`, `sell`, `check_win`, `get_opened_deal` and `get_closed_deal`. Exported as `BinaryOptionsToolsV2.Trade` alongside the `TradeResult` alias.
+- Added `PocketOption.is_ssid_valid()`, mirroring the async client.
+
+### Changed
+
+- `open_pending_order` now takes keyword-only arguments and a string `open_time` (`"YYYY-MM-DD HH:MM:SS"` in UTC, or `"0"` for price-based orders), matching the underlying Rust binding. The silent type-coercion fallback was removed.
+- `payout(asset)` accepts a single asset symbol only; call `payouts()` and index it when several assets are needed.
+
+### Deprecated
+
+These methods keep working (they emit `DeprecationWarning`) and forward to the replacements above: `get_candles`, `get_candles_advanced`, `history`, `get_ticks`, `compile_candles`, `subscribe_symbol_chunked`, `subscribe_symbol_timed`, `subscribe_symbol_time_aligned`, `create_raw_handler`, `send_raw_message`, `create_raw_order`, `create_raw_order_with_timeout`, `create_raw_order_with_timeout_and_retry`, `create_raw_iterator`.
+
 ## [0.2.15]
 
 ### Added

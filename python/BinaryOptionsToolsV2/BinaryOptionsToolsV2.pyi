@@ -87,7 +87,7 @@ class RawPocketOption:
         open_type: int,
         amount: float,
         asset: str,
-        open_time: int,
+        open_time: str,
         open_price: float,
         timeframe: int,
         min_payout: int,

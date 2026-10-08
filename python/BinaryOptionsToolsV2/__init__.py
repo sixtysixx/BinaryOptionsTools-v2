@@ -8,6 +8,8 @@ from .pocketoption import (
     PocketOptionAsync as PocketOptionAsync,
     PocketOption as PocketOption,
     RawHandler as RawHandler,
+    Trade as Trade,
+    TradeResult as TradeResult,
     Validator as Validator,
     __all__ as __pocket_all__,
 )
@@ -67,6 +69,8 @@ __all__ = list(
             "CloseOptionAsync",
             "CloseOption",
             "RawHandler",
+            "Trade",
+            "TradeResult",
             "Validator",
         ]
         + __rust_all__

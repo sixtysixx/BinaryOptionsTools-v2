@@ -73,7 +73,8 @@ client = await RawPocketOption.create(ssid)
 - `async opened_deals() -> List[Dict]`
 - `async closed_deals() -> List[Dict]`
 - `async clear_closed_deals() -> None`
-- `async payout() -> Dict[str, int]`
+- `async payouts() -> Dict[str, int]`
+- `async payout(asset: str) -> int | None`
 - `async candles(asset: str, period: int) -> List[Dict]`
 - `async get_candles(asset: str, period: int, offset: int) -> List[Dict]`
 - `async get_server_time() -> int`
@@ -287,7 +288,7 @@ async def execute_trade(self, ctx, asset):
     opened = await ctx.client.opened_deals()
 
     # Get payout percentage
-    payout = await ctx.client.payout()
+    payout = await ctx.client.payout(asset)
 ```
 
 ### Get Current Time
@@ -508,12 +509,11 @@ async def calculate_sma(self, ctx, asset, period=60, length=20):
 ```python
 async def get_asset_payout(self, ctx, asset):
     """Get payout percentage for asset"""
-    payout = await ctx.client.payout()
-    return payout.get(asset, 0)
+    return await ctx.client.payout(asset) or 0
 
 async def trade_best_payout(self, ctx, assets):
     """Trade asset with highest payout"""
-    payout = await ctx.client.payout()
+    payout = await ctx.client.payouts()
     best_asset = max(assets, key=lambda a: payout.get(a, 0))
     return best_asset
 ```
@@ -675,8 +675,7 @@ class AdvancedTradingStrategy(PyStrategy):
             sma_20 = self.calculate_sma(asset, 20)
 
             # Get payout
-            payout_data = await ctx.client.payout()
-            payout = payout_data.get(asset, 0)
+            payout = await ctx.client.payout(asset) or 0
 
             if payout < 70:  # Skip if payout too low
                 return
@@ -964,7 +963,7 @@ finally:
 | `ctx.client.check_win()`    | async | Check trade result     |
 | `ctx.client.opened_deals()` | async | Get active trades      |
 | `ctx.client.closed_deals()` | async | Get closed trades      |
-| `ctx.client.payout()`       | async | Get payout percentages |
+| `ctx.client.payouts()`      | async | Get payout percentages |
 | `ctx.get_time()`            | sync  | Get current timestamp  |
 
 **Next Steps:**

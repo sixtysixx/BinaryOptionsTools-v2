@@ -182,9 +182,10 @@ from BinaryOptionsToolsV2.pocketoption import PocketOption
 
 def main(ssid: str):
     with PocketOption(ssid) as api:
-        # Get payout for asset
-        payout = api.payout("EURUSD_otc")
-        print(f"Payout for EURUSD_otc: {payout * 100}%")
+        # Get payout for every asset, then for a single one
+        all_payouts = api.payouts()
+        print(f"EURUSD_otc payout: {all_payouts.get('EURUSD_otc')}%")
+        print(f"Payout for EURUSD_otc: {api.payout('EURUSD_otc')}%")
 
 
 if __name__ == "__main__":
