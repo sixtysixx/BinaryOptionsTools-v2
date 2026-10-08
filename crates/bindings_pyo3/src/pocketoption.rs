@@ -207,7 +207,6 @@ impl RawPocketOption {
         self.client.is_connected()
     }
 
-
     pub fn buy<'py>(
         &self,
         py: Python<'py>,
@@ -653,10 +652,7 @@ impl RawPocketOption {
     pub fn subscribe_raw<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         future_into_py(py, async move {
-            let raw_stream = client
-                .subscribe_raw()
-                .await
-                .map_err(BinaryErrorPy::from)?;
+            let raw_stream = client.subscribe_raw().await.map_err(BinaryErrorPy::from)?;
 
             let boxed_stream = async_stream::stream! {
                 tokio::pin!(raw_stream);

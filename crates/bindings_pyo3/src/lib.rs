@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
 
-mod config;
 mod closeoption;
+mod config;
 mod error;
 mod framework;
 mod logs;
