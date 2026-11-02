@@ -60,7 +60,7 @@ Add the crate to your `Cargo.toml` dependencies:
 
 ```toml
 [dependencies]
-binary_options_tools = "0.2.17"
+binary_options_tools = "0.2.18"
 ```
 
 ## Quick Start
