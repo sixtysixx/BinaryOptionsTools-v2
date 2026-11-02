@@ -9,6 +9,10 @@ members = [
     "crates/bindings_pyo3",
     "crates/bindings_uniffi",
     "crates/bindings_uniffi/bo2_macros",
+    # Separate crate so uniffi/cli (clap and friends) is not built for the cdylib.
+    # Note: `cargo build --workspace` unifies features and still enables cli; only
+    # package-scoped builds (-p binary_options_tools_uni, the wheel and addon jobs)
+    # skip it.
     "crates/bindings_uniffi/uniffi-bindgen",
 ]
 
