@@ -11,9 +11,36 @@
 
 FROM rust:1-bookworm AS build
 WORKDIR /src
+
+# Dependency layer: manifests plus empty stub sources only. A source edit does not
+# reach this layer, so the dependency crates stay cached by the GHA layer cache
+# that console-image.yml already exports (cache-to: type=gha,mode=max).
+# Cargo.lock is gitignored in this repository, so it cannot be copied in; the first
+# build resolves it and the generated lock stays in the image for the layer below.
 COPY Cargo.toml ./
+COPY crates/core/Cargo.toml crates/core/Cargo.toml
+COPY crates/core/macros/Cargo.toml crates/core/macros/Cargo.toml
+COPY crates/macros/Cargo.toml crates/macros/Cargo.toml
+COPY crates/binary_options_tools/Cargo.toml crates/binary_options_tools/Cargo.toml
+COPY crates/bindings_napi/Cargo.toml crates/bindings_napi/Cargo.toml
+COPY crates/bindings_pyo3/Cargo.toml crates/bindings_pyo3/Cargo.toml
+COPY crates/bindings_uniffi/Cargo.toml crates/bindings_uniffi/Cargo.toml
+COPY crates/bindings_uniffi/bo2_macros/Cargo.toml crates/bindings_uniffi/bo2_macros/Cargo.toml
+RUN set -eux; \
+    for d in crates/core crates/core/macros crates/macros crates/binary_options_tools \
+             crates/bindings_napi crates/bindings_pyo3 crates/bindings_uniffi \
+             crates/bindings_uniffi/bo2_macros; do \
+      mkdir -p "$d/src"; : > "$d/src/lib.rs"; \
+    done; \
+    cargo build -p binary_options_tools_napi --release
+
 COPY crates ./crates
-RUN cargo build -p binary_options_tools_napi --release
+# COPY keeps the mtimes from the build context, which are older than the stub
+# artifacts from the layer above, so cargo would deem the workspace crates fresh
+# and link the empty stub rlibs. Touch them so cargo rebuilds the workspace crates
+# while the third-party dependencies above stay cached.
+RUN find crates -type f -exec touch {} + \
+ && cargo build -p binary_options_tools_napi --release
 
 FROM node:22-bookworm-slim
 WORKDIR /app/nodejs
