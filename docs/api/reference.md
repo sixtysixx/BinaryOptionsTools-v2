@@ -49,8 +49,8 @@ from this repository with `uniffi-bindgen` (proc-macro based, no `.udl` file):
 
 ```bash
 # supported languages: kotlin, swift, python, ruby
-cargo run -p binary_options_tools_uni --bin uniffi-bindgen generate --library --language kotlin --out-dir out/kotlin
-cargo run -p binary_options_tools_uni --bin uniffi-bindgen generate --library --language swift  --out-dir out/swift
+cargo run -p bo2-uniffi-bindgen --bin uniffi-bindgen generate --library --language kotlin --out-dir out/kotlin
+cargo run -p bo2-uniffi-bindgen --bin uniffi-bindgen generate --library --language swift  --out-dir out/swift
 
 # then add the generated sources plus the compiled library to your project
 cargo build --release -p binary_options_tools_uni

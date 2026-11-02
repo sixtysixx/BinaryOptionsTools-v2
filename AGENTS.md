@@ -108,8 +108,8 @@ maturin sdist                            # Source distribution
 
 ```bash
 # Run from crates/bindings_uniffi/ (proc-macro based, no UDL file)
-cargo run -p binary_options_tools_uni --bin uniffi-bindgen generate --library --language kotlin --out-dir out/kotlin
-cargo run -p binary_options_tools_uni --bin uniffi-bindgen generate --library --language swift --out-dir out/swift
+cargo run -p bo2-uniffi-bindgen --bin uniffi-bindgen generate --library --language kotlin --out-dir out/kotlin
+cargo run -p bo2-uniffi-bindgen --bin uniffi-bindgen generate --library --language swift --out-dir out/swift
 ```
 
 ## Test Commands

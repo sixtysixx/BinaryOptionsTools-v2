@@ -9,6 +9,7 @@ members = [
     "crates/bindings_pyo3",
     "crates/bindings_uniffi",
     "crates/bindings_uniffi/bo2_macros",
+    "crates/bindings_uniffi/uniffi-bindgen",
 ]
 
 [workspace.dependencies]
@@ -18,7 +19,7 @@ chrono = { version = "0.4.45", features = ["serde"] }
 darling = { version = "0.23.0", features = ["serde"] }
 futures-util = "0.3.34"
 kanal = "0.1.1"
-rand = "0.10.3"
+rand = "0.9.5"
 # regex-lite: same API for every pattern this repository uses, without the
 # aho-corasick/regex-automata/regex-syntax stack (~26s of the wheel build).
 regex = { package = "regex-lite", version = "0.1.8" }
@@ -30,12 +31,14 @@ thiserror = "2.0.21"
 tokio = "1.54.1"
 tokio-tungstenite = { version = "0.29.0", default-features = false, features = ["rustls-tls-webpki-roots", "connect", "handshake"] }
 tracing = "0.1.44"
-tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
-uniffi = { version = "0.32.2", features = ["cli"] }
+# no env-filter: it pulls matchers -> regex-automata into every crate. The one
+# caller that reads RUST_LOG uses filter::Targets instead.
+tracing-subscriber = "0.3.23"
+uniffi = "0.32.2"
 base64 = "0.23"
 http = "1.5"
 url = { version = "2.5.8", features = ["serde"] }
-uuid = { version = "1.29.0", features = ["v4", "fast-rng", "serde"] }
+uuid = { version = "1.29.0", features = ["v4", "serde"] }
  zyn = "0.5.4"
 
 [profile.release]
