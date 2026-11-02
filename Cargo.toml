@@ -19,7 +19,9 @@ darling = { version = "0.23.0", features = ["serde"] }
 futures-util = "0.3.34"
 kanal = "0.1.1"
 rand = "0.10.3"
-regex = "1.13.1"
+# regex-lite: same API for every pattern this repository uses, without the
+# aho-corasick/regex-automata/regex-syntax stack (~26s of the wheel build).
+regex = { package = "regex-lite", version = "0.1.8" }
 rust_decimal = { version = "1.43.0", features = ["serde", "macros", "serde-with-float"] }
 rust_decimal_macros = "1.40.0"
 serde = { version = "1.0.229", features = ["derive"] }
@@ -30,7 +32,7 @@ tokio-tungstenite = { version = "0.29.0", default-features = false, features = [
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 uniffi = { version = "0.32.2", features = ["cli"] }
-base64 = "0.22"
+base64 = "0.23"
 http = "1.5"
 url = { version = "2.5.8", features = ["serde"] }
 uuid = { version = "1.29.0", features = ["v4", "fast-rng", "serde"] }

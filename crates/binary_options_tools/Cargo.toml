@@ -39,13 +39,14 @@ rust_decimal = { workspace = true }
 rust_decimal_macros = { workspace = true }
 ryu = "1.0"
 thiserror = { workspace = true }
-base64 = { workspace = true }
 http = { workspace = true }
  rustls = { version = "0.23.46", default-features = false, features = ["ring"] }
  rustls-native-certs = "0.8.5"
  webpki-roots = "1"
  php_serde = "0.6.0"
- tokio-rustls = "0.26.6"
+ # default-features would turn on rustls/aws_lc_rs, a second TLS backend compiled
+ # next to ring (aws-lc-sys alone is the single most expensive unit in the build).
+ tokio-rustls = { version = "0.26.6", default-features = false, features = ["ring", "logging", "tls12"] }
 
 [dev-dependencies]
 futures-util = { workspace = true }
