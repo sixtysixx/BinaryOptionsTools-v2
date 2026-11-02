@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Validator regexes are compiled with `regex-lite` instead of `regex`.** The dependency graph now builds a single small engine instead of `regex` + `aho-corasick` + `regex-automata`. The syntax is a subset: no look-around, no backreferences and no Unicode character classes such as `\p{L}`, and `\d`, `\w`, `\s` match ASCII only. Unsupported patterns fail when the validator is built rather than matching at runtime.
 - **`candles_many()` no longer opens a live subscription per symbol.** It compiles each snapshot from tick pages and overlaps the per-symbol requests with a bounded pool, roughly halving the wall time of a wide batch. The broker has no multi-symbol history endpoint and paces request starts by 200 ms (four in flight), so the documented ceiling is about five symbols per second per client; `candles_many` cannot beat it.
 - The sync `candles_many()` now delegates to the async implementation instead of duplicating the loop, so both clients share the same batching and error handling.
 - **Python structure documented in one place.** `docs/architecture/python-api-layers.md` now describes the Rust core -> raw PyO3 -> async -> sync layers, the steps for adding a method, and the naming traps (`payout` vs `payouts`, the candle methods, `offset` units). The async and sync modules carry matching docstrings, and the duplicated API lists in `python/README.md` / `crates/bindings_pyo3/README.md` point at the canonical reference instead of silently drifting.

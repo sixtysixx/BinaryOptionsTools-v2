@@ -10,6 +10,7 @@ on:
     paths:
       - "crates/**"
       - "nodejs/**"
+      - "Cargo.toml"
       - ".github/workflows/console-image.yml"
   # On a pull request the image is built and smoke-tested but not published,
   # so a broken Dockerfile is caught before it reaches master.
@@ -17,6 +18,7 @@ on:
     paths:
       - "crates/**"
       - "nodejs/**"
+      - "Cargo.toml"
       - ".github/workflows/console-image.yml"
   workflow_dispatch:
     inputs:
