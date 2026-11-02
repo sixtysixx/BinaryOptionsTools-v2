@@ -36,7 +36,7 @@ npm run build
 
 ```toml
 [dependencies]
-binary_options_tools = "0.2.17"
+binary_options_tools = "0.2.18"
 tokio = { version = "1", features = ["full"] }
 tokio-stream = "0.1"
 ```
@@ -667,6 +667,6 @@ For the complete, current list per language see
 
 ---
 
-**Version**: 0.2.17  
+**Version**: 0.2.18  
 **Last Updated**: October 2026  
 **Platform Support**: PocketOption (Quick Trading)
