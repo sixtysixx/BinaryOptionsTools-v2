@@ -111,6 +111,7 @@ Two separate broker limits decide this, both measured against the live servers o
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | Concurrent live streams     | A session streams the `changeSymbol` symbol plus about one watchlist symbol. Extra subscriptions never receive ticks.                       | Keep a small rotating pool, or poll snapshots instead of streaming. |
 | Concurrent history requests | Requests spaced ~200 ms apart are answered every time; a burst loses answers, and a hammered session degrades until _everything_ times out. | Nothing - the client paces requests for you.                        |
+| History requests per second | The 200 ms pace and the four-slot cap work out to roughly five requests per second for the whole client.                                     | Budget `len(assets) / 5` seconds; nothing can bypass the pace.       |
 
 `unsubscribeSymbol` is accepted but ignored by the server, so a released stream
 only actually stops when the chart moves to another symbol. The client tracks
@@ -128,7 +129,10 @@ for symbol, candles in feed.items():
 
 This is not subject to the stream ceiling and is the supported path for a dozen
 or more instruments. A 12-symbol batch completes reliably; streaming the same 12
-does not, because the server will only feed about two of them.
+does not, because the server will only feed about two of them. `candles_many`
+compiles each snapshot from tick pages directly (no per-symbol subscription) and
+overlaps up to four requests, but the 200 ms pace is a hard floor: expect roughly
+`len(assets) / 5` seconds.
 
 ## Which to use
 

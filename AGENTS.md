@@ -15,7 +15,7 @@ This is a multi-language project: **Rust** core with **Python** bindings (via Py
 - `nodejs/` — Node.js package wrapping the N-API addon (`npm run build`, `npm test`)
 - `examples/` — Per-language runnable examples (`examples/<language>/{async,sync}/`)
 - `tests/` — Python tests (`tests/python/`), Rust tests inline
-- `docs/` — Markdown documentation sources (Docusaurus-style frontmatter; the site generator config is not tracked in this repository)
+- `docs/` — Markdown documentation sources (Docusaurus-style frontmatter; the site generator config is not tracked in this repository). Python API changes must follow `docs/architecture/python-api-layers.md`.
 - `docs/data/`, `crates/binary_options_tools/data/` — Test fixtures and JSON data
 
 ## Product Context

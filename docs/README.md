@@ -19,6 +19,8 @@ New here? Start with **[intro.md](intro.md)**.
 | Understand why a candle call returned fewer candles than asked | [guides/candle-history-limits.md](guides/candle-history-limits.md)                                           |
 | Check whether an asset is trading and what timeframes exist    | [guides/assets-timeframes.md](guides/assets-timeframes.md)                                                   |
 | Understand the internals                                       | [architecture/structure.md](architecture/structure.md), [architecture/dataflow.md](architecture/dataflow.md) |
+| Learn how the raw, async and sync Python APIs fit together     | [architecture/python-api-layers.md](architecture/python-api-layers.md)                                       |
+| Trace trades, deals and pending orders                         | [architecture/deals-and-trades.md](architecture/deals-and-trades.md)                                         |
 | Work on the docs themselves                                    | [project/deployment.md](project/deployment.md)                                                               |
 
 ## Layout
@@ -29,7 +31,7 @@ docs/
 ├── intro.md           # what the project is, quick links
 ├── api/               # reference.md (multi-language), python.md
 ├── guides/            # trading, raw handler, candle limits, assets, bot walkthrough
-├── architecture/      # structure.md, dataflow.md, raw-module.md
+├── architecture/      # structure, dataflow, raw module, Python API layers, deals/trades
 ├── examples/          # per-language runnable examples
 ├── project/           # deployment, the 0.2.6 breaking changes, simplification plan
 ├── ecosystem.md       # ChipaEditor and ChipaX

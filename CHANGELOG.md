@@ -5,6 +5,24 @@ All notable changes to BinaryOptionsTools v2 will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.17 HOTFIX]
+
+### Added
+
+- `PocketOptionAsync.payouts(assets=...)` / `PocketOption.payouts(assets=...)` accept a watchlist and return only those symbols, so a periodic payout poll no longer reads and serialises the whole catalog. The raw binding exposes both the filtered `payout(assets=None)` and a single-symbol `payout_for(asset)` that returns the integer directly.
+
+### Fixed
+
+- **`payout(asset)` fetched, serialised and parsed every asset's payout.** The Python wrapper implemented the single-symbol call as `(await self.payouts()).get(asset)`, and the Rust side cloned the entire asset catalog for it. The lookup is now an in-place read of one cached entry (no catalog clone, no JSON), which removes the per-order cost that competed with candle polling on the shared event loop (#154).
+
+### Changed
+
+- **`candles_many()` no longer opens a live subscription per symbol.** It compiles each snapshot from tick pages and overlaps the per-symbol requests with a bounded pool, roughly halving the wall time of a wide batch. The broker has no multi-symbol history endpoint and paces request starts by 200 ms (four in flight), so the documented ceiling is about five symbols per second per client; `candles_many` cannot beat it.
+- The sync `candles_many()` now delegates to the async implementation instead of duplicating the loop, so both clients share the same batching and error handling.
+- **Python structure documented in one place.** `docs/architecture/python-api-layers.md` now describes the Rust core -> raw PyO3 -> async -> sync layers, the steps for adding a method, and the naming traps (`payout` vs `payouts`, the candle methods, `offset` units). The async and sync modules carry matching docstrings, and the duplicated API lists in `python/README.md` / `crates/bindings_pyo3/README.md` point at the canonical reference instead of silently drifting.
+- **Candle normalization lives in one place.** `get_candles_live()` and `candles_many()` now share `_candle_timestamp`, `_normalize_candle` and `_closed_candles`, so the public `{time, open, high, low, close}` shape and the second-vs-millisecond handling cannot diverge again.
+- The stale `crates/binary_options_tools/mkds/README.md` moved to `docs/architecture/deals-and-trades.md` and was rewritten against the current modules (`DealsApiModule`, `TradesApiModule`, `PendingTradesApiModule`). The rewrite records the actual duplicate-check and pending-order lifecycle (both are weaker than the old sketch implied) instead of repeating the removed `DealsUpdateModule` design.
+
 ## [0.2.17]
 
 ### Fixed

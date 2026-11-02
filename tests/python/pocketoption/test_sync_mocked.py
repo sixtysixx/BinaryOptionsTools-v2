@@ -173,11 +173,20 @@ class MockPocketOptionAsync:
     async def clear_closed_deals(self):
         pass
 
-    async def payouts(self):
-        return {"EURUSD_otc": 85, "GBPUSD_otc": 82, "BTCUSD_otc": 78}
+    async def payouts(self, assets=None):
+        payouts = {"EURUSD_otc": 85, "GBPUSD_otc": 82, "BTCUSD_otc": 78}
+        if assets is not None:
+            payouts = {
+                symbol: payouts[symbol] for symbol in assets if symbol in payouts
+            }
+        return payouts
 
     async def payout(self, asset):
         return 85 if asset == "EURUSD_otc" else None
+
+    async def candles_many(self, assets, period, *, count=100):
+        candle = {"time": 1000, "open": 1.1, "high": 1.2, "low": 1.0, "close": 1.15}
+        return {asset: [candle] for asset in dict.fromkeys(assets)}
 
     async def active_assets(self):
         return [
@@ -704,6 +713,22 @@ class TestCandles:
         assert isinstance(closed, list)
         assert len(closed) > 0
 
+    def test_candles_many_delegates_to_the_async_client(
+        self, sync_client, mock_pocketoption_async
+    ):
+        """The sync wrapper hands the whole batch to the async client."""
+        candle = {"time": 1000, "open": 1.1, "high": 1.2, "low": 1.0, "close": 1.15}
+        mock_pocketoption_async.candles_many = AsyncMock(
+            return_value={"EURUSD_otc": [candle]}
+        )
+
+        feed = sync_client.candles_many(["EURUSD_otc", "GBPUSD_otc"], 60, count=2)
+
+        assert feed == {"EURUSD_otc": [candle]}
+        mock_pocketoption_async.candles_many.assert_awaited_once_with(
+            ["EURUSD_otc", "GBPUSD_otc"], 60, count=2
+        )
+
 
 class TestTicks:
     """Tests for the ticks method."""
@@ -910,6 +935,31 @@ class TestPayout:
     def test_payout_invalid_asset(self, sync_client):
         """Test payout for an unknown asset returns None."""
         assert sync_client.payout("INVALID_ASSET") is None
+
+    def test_payouts_filters_to_the_watchlist(
+        self, sync_client, mock_pocketoption_async
+    ):
+        """payouts(assets) forwards the filter to the async client."""
+        mock_pocketoption_async.payouts = AsyncMock(return_value={"EURUSD_otc": 85})
+
+        payouts = sync_client.payouts(["EURUSD_otc", "INVALID_ASSET"])
+
+        assert payouts == {"EURUSD_otc": 85}
+        mock_pocketoption_async.payouts.assert_awaited_once_with(
+            ["EURUSD_otc", "INVALID_ASSET"]
+        )
+
+    def test_payout_uses_the_single_symbol_path(
+        self, sync_client, mock_pocketoption_async
+    ):
+        """payout(asset) must not fetch the whole catalog through payouts()."""
+        mock_pocketoption_async.payout = AsyncMock(return_value=85)
+        mock_pocketoption_async.payouts = AsyncMock(
+            side_effect=AssertionError("payout() must not fetch the catalog")
+        )
+
+        assert sync_client.payout("EURUSD_otc") == 85
+        mock_pocketoption_async.payout.assert_awaited_once_with("EURUSD_otc")
 
 
 class TestActiveAssets:

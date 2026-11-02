@@ -105,4 +105,8 @@ site
 logs_fail
 wheels/
 config.toml
+
+#private
+
 websocket_export.csv
+SixStrategy/

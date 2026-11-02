@@ -538,6 +538,35 @@ impl Assets {
         self.0.get(symbol)
     }
 
+    /// Payout percentage of one active asset.
+    ///
+    /// Reads the catalog in place, so a per-order payout lookup does not clone
+    /// or serialise every other symbol in it. Unknown and inactive assets both
+    /// return `None`: an inactive asset has no tradable payout.
+    pub fn payout(&self, symbol: &str) -> Option<i32> {
+        self.get(symbol)
+            .filter(|asset| asset.is_active)
+            .map(|asset| asset.payout)
+    }
+
+    /// Payout percentages of every active asset, keyed by symbol.
+    pub fn payouts(&self) -> HashMap<String, i32> {
+        self.active_iter()
+            .map(|asset| (asset.symbol.clone(), asset.payout))
+            .collect()
+    }
+
+    /// Payout percentages of the active assets among `symbols`.
+    ///
+    /// Unknown and inactive symbols are skipped, so the result only contains
+    /// symbols that can actually be traded right now.
+    pub fn payouts_for(&self, symbols: &[String]) -> HashMap<String, i32> {
+        symbols
+            .iter()
+            .filter_map(|symbol| self.payout(symbol).map(|payout| (symbol.clone(), payout)))
+            .collect()
+    }
+
     pub fn validate(&self, symbol: &str, time: u32) -> PocketResult<()> {
         if let Some(asset) = self.get(symbol) {
             asset.validate(time)
@@ -849,6 +878,50 @@ mod tests {
         let mut synced = ServerTime::default();
         synced.update(1_791_932_536);
         assert!((synced.get_server_time() - 1_791_932_536).abs() <= 5);
+    }
+
+    #[test]
+    fn payouts_can_be_scoped_to_a_watchlist() {
+        fn asset(symbol: &str, payout: i32, is_active: bool) -> Asset {
+            Asset {
+                id: 0,
+                name: symbol.to_string(),
+                symbol: symbol.to_string(),
+                is_otc: false,
+                is_active,
+                payout,
+                allowed_candles: vec![],
+                asset_type: AssetType::Currency,
+                opens_at: None,
+            }
+        }
+
+        let mut catalog = HashMap::new();
+        catalog.insert("EURUSD_otc".to_string(), asset("EURUSD_otc", 85, true));
+        catalog.insert("GBPUSD_otc".to_string(), asset("GBPUSD_otc", 82, true));
+        catalog.insert("CLOSED".to_string(), asset("CLOSED", 90, false));
+        let assets = Assets(catalog);
+
+        // Single-symbol lookups ignore closed markets and unknown symbols.
+        assert_eq!(assets.payout("EURUSD_otc"), Some(85));
+        assert_eq!(assets.payout("CLOSED"), None);
+        assert_eq!(assets.payout("MISSING"), None);
+
+        // The unfiltered view still contains only active assets.
+        let all = assets.payouts();
+        assert_eq!(all.len(), 2);
+        assert_eq!(all["GBPUSD_otc"], 82);
+        assert!(!all.contains_key("CLOSED"));
+
+        // A watchlist filters in place and drops unknown/inactive entries.
+        let requested = vec![
+            "EURUSD_otc".to_string(),
+            "CLOSED".to_string(),
+            "MISSING".to_string(),
+        ];
+        let filtered = assets.payouts_for(&requested);
+        assert_eq!(filtered, HashMap::from([("EURUSD_otc".to_string(), 85)]));
+        assert!(assets.payouts_for(&[]).is_empty());
     }
 
     #[test]

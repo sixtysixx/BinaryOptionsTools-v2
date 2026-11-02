@@ -5,9 +5,15 @@
 > **📈 Trade crypto perps, spot & margin on [ChipaX](https://exchange.chipatrade.com/trade/BTC?ref=Z1RN8GBS) — demo mode available.**
 
 [![Discord](https://img.shields.io/discord/your-discord-id?color=7289da&label=Discord&logo=discord&logoColor=white)](https://discord.gg/T3FGXcmd)
-[![Python](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://pypi.org/project/binaryoptionstoolsv2/)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://pypi.org/project/binaryoptionstoolsv2/)
 
 Python bindings for BinaryOptionsTools - A powerful library for automated binary options trading on PocketOption platform.
+
+> **Documentation map:** the authoritative API reference is
+> [`docs/api/python.md`](../docs/api/python.md), and the layer-by-layer rules are in
+> [`docs/architecture/python-api-layers.md`](../docs/architecture/python-api-layers.md).
+> This README is mirrored by `crates/bindings_pyo3/README.md`; keep the markdown
+> version numbers and API lists in sync when either changes.
 
 ## Current Status
 
@@ -100,7 +106,7 @@ Key Features of PocketOptionAsync
   - `balance()`: Returns the current account balance.
   - `opened_deals()`: Lists all open trades.
   - `closed_deals()`: Lists all closed trades.
-  - `payouts()`: Returns the payout percentage of every asset.
+  - `payouts(assets=None)`: Returns the payout percentage of every asset, or only the given watchlist.
   - `payout(asset)`: Returns the payout percentage of one asset, or `None` if it is unknown.
 - **Real-Time Data**:
   - `subscribe_symbol()`: yields raw ticks (not candles). The broker streams ~2 symbols per session, so use `candles_many()` for many-symbol candle snapshots.
@@ -174,7 +180,8 @@ Key Features of PocketOption
   - `balance()`: Retrieves account balance.
   - `opened_deals()`: Lists all open trades.
   - `closed_deals()`: Lists all closed trades.
-  - `payout()`: Returns payout percentages.
+  - `payouts(assets=None)`: Returns the payout percentage of every asset, or only the given watchlist.
+  - `payout(asset)`: Returns the payout percentage of one asset, or `None` if it is unknown.
 - **Real-Time Data**:
   - `subscribe_symbol()`: Provides a synchronous iterator for live data updates.
   - `subscribe_symbol_timed()`: Provides a synchronous iterator for timed real-time candle updates.
@@ -506,7 +513,7 @@ Use `_otc` suffix for over-the-counter (24/7 available) assets.
 ## 📚 Additional Resources
 
 - **Full Examples**: [docs/examples/python](https://gitlab.chipatrade.com/chipadevorg/BinaryOptionsTools-v2/-/tree/master/docs/examples/python)
-- **API Documentation**: [docs/api/python.md](docs/api/python.md)
+- **API Documentation**: [docs/api/python.md](../docs/api/python.md)
 - **Discord Community**: [Join us](https://discord.gg/T3FGXcmd)
 
 ## ⚠️ Risk Warning

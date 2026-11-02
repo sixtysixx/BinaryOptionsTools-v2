@@ -1,4 +1,14 @@
+"""Synchronous thread bridge over :class:`PocketOptionAsync`.
+
+Each method schedules the matching coroutine on the client's background event
+loop and blocks the calling thread. Parsing, validation and protocol logic belong
+in ``asynchronous.py``: add a method there first, then delegate to it here, so the
+two clients cannot drift. API layering is described in
+``docs/architecture/python-api-layers.md``.
+"""
+
 import asyncio
+
 import json
 import threading
 import sys
@@ -400,6 +410,13 @@ class PocketOption:
         be fetched (closed market, unknown symbol) are absent from the result
         instead of failing the whole batch.
 
+        The broker has no multi-symbol history request, so each symbol costs its
+        own ``loadHistoryPeriod`` round-trip. The client starts history requests
+        about 200 ms apart and keeps at most four in flight, which caps the whole
+        process at roughly five requests per second: budget at least
+        ``len(assets) / 5`` seconds for a batch, shared with every other history
+        request on this client.
+
         Args:
             assets: Symbols to fetch.
             period: Candle timeframe in seconds.
@@ -408,15 +425,7 @@ class PocketOption:
         Returns:
             Mapping of symbol to its candles, oldest first.
         """
-        results: Dict[str, List[Dict]] = {}
-        for asset in assets:
-            try:
-                candles = self.candles(asset, period, count=count)
-            except Exception:  # noqa: BLE001 - one bad symbol must not fail the batch
-                continue
-            if candles:
-                results[asset] = candles
-        return results
+        return self._run(self._client.candles_many(assets, period, count=count))
 
     def candles(
         self,
@@ -437,6 +446,13 @@ class PocketOption:
         Returns:
             List of closed candles, each with 'time', 'open', 'high',
             'low', 'close'.
+
+        Note:
+            With ``end_time`` set, this returns the history binding's raw
+            ``Candle`` payload (``timestamp``, ``symbol``, ``volume``,
+            ``is_closed``) and forwards ``count`` as the request's ``offset``,
+            which is a window in seconds. Without ``end_time`` the result uses
+            the normalized ``time``/OHLC shape.
 
         Example:
             ```python
@@ -648,22 +664,33 @@ class PocketOption:
         """Clear the list of closed deals from local storage."""
         self._run(self._client.clear_closed_deals())
 
-    def payouts(self) -> Dict[str, int]:
+    def payouts(self, assets: Optional[Sequence[str]] = None) -> Dict[str, int]:
         """Get the current payout percentage for every asset.
 
+        Args:
+            assets: Optional symbols to restrict the result to. ``None`` (the
+                default) returns every active asset. When a watchlist is given,
+                only those symbols are read and serialised, so polling a few
+                instruments does not pay for the whole catalog.
+
         Returns:
-            Mapping of asset symbol to payout percentage.
+            Mapping of asset symbol to payout percentage. Unknown and inactive
+            symbols are omitted.
         """
-        return self._run(self._client.payouts())
+        return self._run(self._client.payouts(assets))
 
     def payout(self, asset: str) -> Optional[int]:
         """Get the current payout percentage for a single asset.
+
+        This is a single-symbol lookup: it neither serialises nor parses the
+        payout catalog, so it is the cheap path for a per-order payout check.
 
         Args:
             asset: Asset symbol (e.g. ``"EURUSD_otc"``).
 
         Returns:
-            The payout percentage, or ``None`` if the asset is unknown.
+            The payout percentage, or ``None`` if the asset is unknown or not
+            currently active.
 
         See Also:
             :meth:`payouts` for the payout of every asset at once.

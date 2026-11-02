@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::str;
 use std::sync::Arc;
 use std::time::Duration;
@@ -525,22 +524,22 @@ impl RawPocketOption {
         })
     }
 
-    pub fn payout<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+    /// Returns the payout percentages of the active assets as a JSON object.
+    ///
+    /// `assets` restricts the result to those symbols (unknown and inactive ones
+    /// are omitted); `None` returns every active asset. Filtering happens while
+    /// the cached catalog is read, so a watchlist poll does not serialise the
+    /// whole catalog.
+    #[pyo3(signature = (assets=None))]
+    pub fn payout<'py>(
+        &self,
+        py: Python<'py>,
+        assets: Option<Vec<String>>,
+    ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         future_into_py(py, async move {
-            match client.assets().await {
-                Some(assets) => {
-                    let payouts: HashMap<&String, i32> = assets
-                        .0
-                        .iter()
-                        .filter_map(|(asset, symbol)| {
-                            if symbol.is_active {
-                                Some((asset, symbol.payout))
-                            } else {
-                                None
-                            }
-                        })
-                        .collect();
+            match client.payouts(assets.as_deref()).await {
+                Some(payouts) => {
                     let res = serde_json::to_string(&payouts).map_err(BinaryErrorPy::from)?;
                     Ok(res)
                 }
@@ -549,6 +548,16 @@ impl RawPocketOption {
                 }
             }
         })
+    }
+
+    /// Returns the payout percentage of a single asset, or `None` when the
+    /// symbol is unknown or inactive.
+    ///
+    /// Unlike [`Self::payout`] this never serialises a map: it is the cheap path
+    /// for a per-order payout check.
+    pub fn payout_for<'py>(&self, py: Python<'py>, asset: String) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        future_into_py(py, async move { Ok(client.payout(&asset).await) })
     }
 
     pub fn active_assets<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {

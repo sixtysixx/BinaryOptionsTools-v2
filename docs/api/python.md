@@ -26,6 +26,11 @@ Both expose the same families of methods; the sync client returns iterators wher
 the async client returns async generators or coroutines. Everything below is shown
 against `PocketOptionAsync` unless noted.
 
+The async client wraps the raw PyO3 binding, and the sync client is a thread bridge
+over the async one. See [Python API Layers](../architecture/python-api-layers.md)
+for the raw-vs-high-level return types (especially `payout`) and the rules for
+adding a method.
+
 ## Constructing a client
 
 The constructor is **not** awaitable — it starts the connection in the background.
@@ -104,7 +109,21 @@ adds `is_win` / `is_loss` / `is_draw` / `is_settled`.
 | `cancel_pending_order(ticket)`                                                                                     | `Dict`           |
 | `cancel_pending_orders(tickets)`                                                                                   | `Dict`           |
 | `payout(asset)`                                                                                                    | `Optional[int]`  |
-| `payouts()`                                                                                                        | `Dict[str, int]` |
+| `payouts(assets=None)`                                                                                             | `Dict[str, int]` |
+
+`payout(asset)` reads one entry from the cached asset catalog; it does not
+serialise or parse the whole payout map, so it is safe to call before every
+order. `payouts()` returns every active asset, and `payouts(assets)` restricts
+both the lookup and the result to a watchlist:
+
+```python
+watchlist = ["EURUSD_otc", "GBPUSD_otc", "USDJPY_otc"]
+print(await client.payouts(watchlist))  # {"EURUSD_otc": 85, ...}
+print(await client.payout("EURUSD_otc"))  # 85
+```
+
+Unknown and inactive symbols are omitted from `payouts()` and make
+`payout(asset)` return `None`.
 
 ### Market data
 
@@ -121,9 +140,12 @@ adds `is_win` / `is_loss` / `is_draw` / `is_settled`.
 | `history(asset, period)`                                   | Alias of `candles()`                                  | `List[Dict]`                                              |
 | `compile_candles(asset, custom_period, lookback_period)`   | Aggregate ticks into a non-standard timeframe         | `List[Dict]`                                              |
 
-Candles are dictionaries with `time`, `open`, `high`, `low`, `close`. The two
-`offset` meanings above are the most common source of "I asked for 200 candles and
-got nothing" — see [candle history limits](../guides/candle-history-limits.md).
+Candles are normally dictionaries with `time`, `open`, `high`, `low`, `close`.
+The exception is `candles(..., end_time=...)`, which currently returns the raw
+history payload (`timestamp`, `symbol`, `volume`, `is_closed`) and forwards
+`count` as the request's `offset` in seconds. The two `offset` meanings are the
+most common source of "I asked for 200 candles and got nothing" — see
+[candle history limits](../guides/candle-history-limits.md).
 
 `candles_many` polls snapshots rather than holding one stream per symbol, so it is
 the right shape for a dozen or more instruments:
@@ -136,6 +158,15 @@ for symbol, candles in feed.items():
 
 Symbols that cannot be fetched are absent from the result rather than failing the
 whole call.
+
+There is no multi-symbol history endpoint on the broker, so the call still sends
+one history request per symbol. Requests start about 200 ms apart and at most four
+are in flight, capping the client at roughly five requests per second: budget at
+least `len(assets) / 5` seconds and remember that this budget is shared with every
+other candle/tick request on the same client. `candles_many` overlaps the
+per-symbol requests, so it is about twice as fast as a Python loop over
+`candles()`, but it cannot beat the pacing limit. See
+[candle history limits](../guides/candle-history-limits.md#watching-many-symbols-at-once).
 
 ### Subscriptions
 

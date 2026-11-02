@@ -1,4 +1,19 @@
+"""High-level asynchronous PocketOption client.
+
+This is the supported user-facing API. It sits on top of the raw PyO3 binding
+(``RawPocketOption``), which exposes protocol operations as JSON strings; methods
+here parse and validate those payloads and return Python types. The synchronous
+client in ``synchronous.py`` is a thread bridge over this class, not a second
+implementation.
+
+When adding a method, follow the layer order: Rust core -> raw binding -> this
+class -> ``synchronous.py`` delegation -> tests -> docs. See
+``docs/architecture/python-api-layers.md`` for the naming traps between the raw
+and high-level surfaces (notably ``payout`` and the various ``candles`` methods).
+"""
+
 import asyncio
+
 import json
 import re
 import sys
@@ -18,6 +33,11 @@ from .models import Trade, TradeResult
 HISTORY_FETCH_TIMEOUT = 20.0
 # Compiling candles from tick pages takes ~1s per hour of history.
 TICK_HISTORY_FETCH_TIMEOUT = 10.0
+# `candles_many` overlaps snapshot requests, but the broker paces history request
+# starts about 200 ms apart and answers at most four at a time, so this is an
+# in-flight ceiling, not a throughput knob. Requests cannot go faster than the
+# pace regardless of how many callers are waiting.
+CANDLES_MANY_CONCURRENCY = 4
 
 if TYPE_CHECKING:
     from ..BinaryOptionsToolsV2 import Logger, RawPocketOption
@@ -263,7 +283,38 @@ def sanitize_and_validate_ssid(ssid: str, logger: "Logger") -> str:
     return ssid
 
 
-# This file contains all the async code for the PocketOption Module
+def _candle_timestamp(candle: Dict) -> int:
+    """Return a candle's start time in Unix seconds.
+
+    Every source the wrappers mix (compiled tick pages, chart history and the
+    live tick stream) is reported in UTC by the engine. A fixed +2h "platform
+    offset" used to be subtracted here, which pushed historical candles two hours
+    behind the ticks they were merged with. Timestamps also arrive in seconds on
+    one path and milliseconds on another, and the engine calls the field
+    ``timestamp`` while wrapper-built candles call it ``time``.
+    """
+    value = int(float(candle.get("timestamp", candle.get("time", 0))))
+    return value // 1000 if value > 10_000_000_000 else value
+
+
+def _normalize_candle(candle: Dict) -> Dict:
+    """Convert one engine candle to the documented public shape."""
+    return {
+        "time": _candle_timestamp(candle),
+        "open": float(candle["open"]),
+        "high": float(candle["high"]),
+        "low": float(candle["low"]),
+        "close": float(candle["close"]),
+    }
+
+
+def _closed_candles(candles: List[Dict]) -> List[Dict]:
+    """Normalize candles, drop the trailing in-progress one, oldest first."""
+    closed = [_normalize_candle(candle) for candle in candles if candle.get("is_closed") is not False]
+    closed.sort(key=lambda candle: candle["time"])
+    return closed
+
+
 class PocketOptionAsync:
     def __init__(self, ssid: str, url: Optional[str] = None, config: Optional[Union[Config, dict, str]] = None, **_):
         """
@@ -521,6 +572,13 @@ class PocketOptionAsync:
             List of closed candles, each with 'time', 'open', 'high',
             'low', 'close'.
 
+        Note:
+            With ``end_time`` set, this returns the history binding's raw
+            ``Candle`` payload (``timestamp``, ``symbol``, ``volume``,
+            ``is_closed``) and forwards ``count`` as the request's ``offset``,
+            which is a window in seconds. Without ``end_time`` the result uses
+            the normalized ``time``/OHLC shape.
+
         Example:
             ```python
             async with PocketOptionAsync(ssid) as client:
@@ -632,8 +690,16 @@ class PocketOptionAsync:
         This is the right shape for "every minute, give me the last M1 candle of
         each symbol": it polls snapshots instead of holding one live stream per
         symbol, so it is not subject to the server's limit on how many symbols it
-        will stream at once (measured at about two per session). Requests are paced
-        and serialised by the client, so a dozen symbols are fetched reliably.
+        will stream at once (measured at about two per session).
+
+        The broker has no multi-symbol history request, so each symbol costs its
+        own ``loadHistoryPeriod`` round-trip (more when the requested window
+        spans several 1000-second pages). The client starts history requests
+        about 200 ms apart and keeps at most four in flight, which caps the whole
+        process at roughly five requests per second. This method overlaps the
+        per-symbol requests instead of issuing them strictly one after another,
+        but it cannot go faster than that shared ceiling: budget at least
+        ``len(assets) / 5`` seconds for a batch.
 
         Args:
             assets: Symbols to fetch (e.g. ``["EURUSD_otc", "GBPUSD_otc"]``).
@@ -642,8 +708,8 @@ class PocketOptionAsync:
                 most bots, but a few extra make it easy to build indicators.
 
         Returns:
-            Mapping of symbol to its candles, oldest first. Symbols that could not be
-            fetched are simply absent, so a closed market does not fail the batch.
+            Mapping of symbol to its candles, oldest first. Symbols that could not
+            be fetched are simply absent, so a closed market does not fail the batch.
 
         Example:
             ```python
@@ -653,15 +719,37 @@ class PocketOptionAsync:
                     print(symbol, candles[-1]["close"])
             ```
         """
-        results: Dict[str, List[Dict]] = {}
-        for asset in assets:
+        if count <= 0:
+            return {}
+
+        # A repeated symbol is still one broker request and one result entry.
+        unique = list(dict.fromkeys(assets))
+        if not unique:
+            return {}
+
+        lookback = max(period, count * period)
+
+        async def fetch(asset: str) -> Optional[List[Dict]]:
             try:
-                candles = await self.candles(asset, period, count=count)
+                # Snapshot ticks are compiled directly instead of going through
+                # `candles()`, which would open (and immediately release) a live
+                # subscription per symbol. Subscriptions are the scarce resource
+                # this method exists to avoid.
+                payload = await self.client.compile_candles(asset, period, lookback)
+                raw = json.loads(payload) if payload else []
             except Exception:  # noqa: BLE001 - one bad symbol must not fail the batch
-                continue
-            if candles:
-                results[asset] = candles
-        return results
+                return None
+
+            return _closed_candles(raw)[-count:]
+
+        semaphore = asyncio.Semaphore(CANDLES_MANY_CONCURRENCY)
+
+        async def bounded_fetch(asset: str) -> Tuple[str, Optional[List[Dict]]]:
+            async with semaphore:
+                return asset, await fetch(asset)
+
+        pairs = await asyncio.gather(*(bounded_fetch(asset) for asset in unique))
+        return {asset: candles for asset, candles in pairs if candles}
 
     async def get_candles_live(
         self,
@@ -695,21 +783,11 @@ class PocketOptionAsync:
         def bucket_start(timestamp: int, p: int) -> int:
             return (timestamp // p) * p
 
-        def extract_time(candle: Dict) -> int:
-            # Every source this method mixes (compiled tick pages, chart history and
-            # the live tick stream) is reported in UTC by the engine. A fixed
-            # +2h "platform offset" used to be subtracted here, which pushed the
-            # historical candles two hours behind the ticks they were merged with.
-            val = int(float(candle.get("timestamp", candle.get("time", 0))))
-            if val > 10_000_000_000:
-                val //= 1000
-            return val
-
         def merge_candles(*groups: List[Dict]) -> List[Dict]:
             res: Dict[int, Dict] = {}
             for group in groups:
                 for candle in group or []:
-                    res[extract_time(candle)] = candle
+                    res[_candle_timestamp(candle)] = candle
             return [res[ts] for ts in sorted(res)]
 
         # Initialize feed
@@ -719,19 +797,11 @@ class PocketOptionAsync:
         def seed_history(history: List[Dict]) -> None:
             cutoff = bucket_start(int(time.time()), period)
             ordered = sorted(
-                (c for c in history if extract_time(c) < cutoff),
-                key=extract_time,
+                (c for c in history if _candle_timestamp(c) < cutoff),
+                key=_candle_timestamp,
             )
             for c in ordered[-max_rows:]:
-                feed_candles.append(
-                    {
-                        "time": extract_time(c),
-                        "open": float(c["open"]),
-                        "high": float(c["high"]),
-                        "low": float(c["low"]),
-                        "close": float(c["close"]),
-                    }
-                )
+                feed_candles.append(_normalize_candle(c))
 
         def ingest_tick(timestamp: int, price: float) -> None:
             nonlocal forming
@@ -772,7 +842,7 @@ class PocketOptionAsync:
             nonlocal buffering
             try:
                 async for tick in stream:
-                    ts = extract_time(tick)
+                    ts = _candle_timestamp(tick)
                     price = float(tick.get("close", tick.get("price", 0.0)))
                     if buffering:
                         tick_buffer.append((ts, price))
@@ -1233,28 +1303,49 @@ class PocketOptionAsync:
         """
         await self.client.clear_closed_deals()
 
-    async def payouts(self) -> Dict[str, int]:
+    async def payouts(self, assets: Optional[Sequence[str]] = None) -> Dict[str, int]:
         """Current payout percentage for every asset, keyed by symbol.
+
+        Args:
+            assets: Optional symbols to restrict the result to. ``None`` (the
+                default) returns every active asset. When a watchlist is given,
+                only those symbols are read and serialised, so polling a few
+                instruments does not pay for the whole catalog.
 
         Returns:
             Mapping of asset symbol to payout percentage, e.g.
-            ``{"EURUSD_otc": 85, "GBPUSD_otc": 82}``.
+            ``{"EURUSD_otc": 85, "GBPUSD_otc": 82}``. Unknown and inactive
+            symbols are omitted.
+
+        Example:
+            ```python
+            watchlist = ["EURUSD_otc", "GBPUSD_otc"]
+            print(await client.payouts(watchlist))
+            ```
         """
-        return json.loads(await self.client.payout())
+        if isinstance(assets, str):
+            requested: Optional[List[str]] = [assets]
+        else:
+            requested = None if assets is None else list(assets)
+        return json.loads(await self.client.payout(requested))
 
     async def payout(self, asset: str) -> Optional[int]:
         """Current payout percentage for a single asset.
+
+        This is a single-symbol lookup: it neither serialises nor parses the
+        payout catalog, so it is the cheap path for a per-order payout check.
 
         Args:
             asset: Asset symbol (e.g. ``"EURUSD_otc"``).
 
         Returns:
-            The payout percentage, or ``None`` if the asset is unknown.
+            The payout percentage, or ``None`` if the asset is unknown or not
+            currently active.
 
         See Also:
             :meth:`payouts` for the payout of every asset at once.
         """
-        return (await self.payouts()).get(asset)
+        return await self.client.payout_for(asset)
 
     async def active_assets(self) -> List[Dict]:
         """

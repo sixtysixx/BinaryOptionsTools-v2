@@ -110,8 +110,16 @@ class MockRawClient:
     async def clear_closed_deals(self):
         pass
 
-    async def payout(self):
-        return json.dumps({"EURUSD_otc": 85, "GBPUSD_otc": 82, "BTCUSD_otc": 78})
+    async def payout(self, assets=None):
+        payouts = {"EURUSD_otc": 85, "GBPUSD_otc": 82, "BTCUSD_otc": 78}
+        if assets is not None:
+            payouts = {
+                symbol: payouts[symbol] for symbol in assets if symbol in payouts
+            }
+        return json.dumps(payouts)
+
+    async def payout_for(self, asset):
+        return {"EURUSD_otc": 85, "GBPUSD_otc": 82, "BTCUSD_otc": 78}.get(asset)
 
     async def active_assets(self):
         return json.dumps(
@@ -761,6 +769,93 @@ class TestCandles:
         assert isinstance(forming, (dict, type(None)))
 
 
+class TestCandlesMany:
+    """Tests for the batched candle snapshot helper."""
+
+    @pytest.mark.asyncio
+    async def test_compiles_closed_snapshots_without_subscriptions(
+        self, async_client, mock_raw_pocketoption
+    ):
+        """candles_many() snapshots ticks for each symbol and skips the forming candle."""
+        rows = json.dumps(
+            [
+                {
+                    "timestamp": 1000,
+                    "open": 1.1,
+                    "high": 1.2,
+                    "low": 1.0,
+                    "close": 1.15,
+                    "is_closed": True,
+                },
+                {
+                    "timestamp": 1060,
+                    "open": 1.15,
+                    "high": 1.25,
+                    "low": 1.1,
+                    "close": 1.2,
+                    "is_closed": False,
+                },
+            ]
+        )
+        mock_raw_pocketoption.compile_candles = AsyncMock(return_value=rows)
+        # A live subscription per symbol is exactly what this method must avoid.
+        async_client.candles = AsyncMock(
+            side_effect=AssertionError("candles_many must not open live streams")
+        )
+
+        feed = await async_client.candles_many(
+            ["EURUSD_otc", "GBPUSD_otc", "EURUSD_otc"], 60, count=5
+        )
+
+        assert set(feed) == {"EURUSD_otc", "GBPUSD_otc"}
+        assert feed["EURUSD_otc"] == [
+            {"time": 1000, "open": 1.1, "high": 1.2, "low": 1.0, "close": 1.15}
+        ]
+        # Duplicate symbols collapse into one request per symbol.
+        assert mock_raw_pocketoption.compile_candles.await_count == 2
+        mock_raw_pocketoption.compile_candles.assert_any_await("EURUSD_otc", 60, 300)
+        mock_raw_pocketoption.compile_candles.assert_any_await("GBPUSD_otc", 60, 300)
+
+    @pytest.mark.asyncio
+    async def test_one_bad_symbol_does_not_fail_the_batch(
+        self, async_client, mock_raw_pocketoption
+    ):
+        """A closed market or unknown symbol is omitted, not raised."""
+
+        async def compile_candles(asset, period, lookback):
+            if asset == "CLOSED":
+                raise ValueError("Asset `CLOSED` is not active")
+            return json.dumps(
+                [
+                    {
+                        "timestamp": 1000,
+                        "open": 1.1,
+                        "high": 1.2,
+                        "low": 1.0,
+                        "close": 1.15,
+                        "is_closed": True,
+                    }
+                ]
+            )
+
+        mock_raw_pocketoption.compile_candles = AsyncMock(side_effect=compile_candles)
+
+        feed = await async_client.candles_many(["EURUSD_otc", "CLOSED"], 60, count=1)
+
+        assert set(feed) == {"EURUSD_otc"}
+
+    @pytest.mark.asyncio
+    async def test_empty_or_non_positive_count_makes_no_requests(
+        self, async_client, mock_raw_pocketoption
+    ):
+        """Degenerate batches return immediately."""
+        mock_raw_pocketoption.compile_candles = AsyncMock()
+
+        assert await async_client.candles_many([], 60) == {}
+        assert await async_client.candles_many(["EURUSD_otc"], 60, count=0) == {}
+        mock_raw_pocketoption.compile_candles.assert_not_awaited()
+
+
 class TestTicks:
     """Tests for the ticks method."""
 
@@ -1010,6 +1105,61 @@ class TestPayout:
     async def test_payout_invalid_asset(self, async_client):
         """Test payout for an unknown asset returns None."""
         assert await async_client.payout("INVALID_ASSET") is None
+
+    @pytest.mark.asyncio
+    async def test_payout_uses_the_single_symbol_binding(
+        self, async_client, mock_raw_pocketoption
+    ):
+        """payout(asset) must not fetch (and parse) the whole catalog."""
+        mock_raw_pocketoption.payout_for = AsyncMock(return_value=85)
+        mock_raw_pocketoption.payout = AsyncMock(
+            side_effect=AssertionError("payout() must not fetch the catalog")
+        )
+
+        assert await async_client.payout("EURUSD_otc") == 85
+        mock_raw_pocketoption.payout_for.assert_awaited_once_with("EURUSD_otc")
+
+    @pytest.mark.asyncio
+    async def test_payouts_filters_to_the_watchlist(
+        self, async_client, mock_raw_pocketoption
+    ):
+        """payouts(assets) forwards the filter instead of asking for everything."""
+        mock_raw_pocketoption.payout = AsyncMock(
+            return_value=json.dumps({"EURUSD_otc": 85})
+        )
+
+        payouts = await async_client.payouts(["EURUSD_otc", "INVALID_ASSET"])
+
+        assert payouts == {"EURUSD_otc": 85}
+        mock_raw_pocketoption.payout.assert_awaited_once_with(
+            ["EURUSD_otc", "INVALID_ASSET"]
+        )
+
+    @pytest.mark.asyncio
+    async def test_payouts_accepts_a_single_symbol(
+        self, async_client, mock_raw_pocketoption
+    ):
+        """A bare string must be one symbol, not an iterable of characters."""
+        mock_raw_pocketoption.payout = AsyncMock(
+            return_value=json.dumps({"EURUSD_otc": 85})
+        )
+
+        assert await async_client.payouts("EURUSD_otc") == {"EURUSD_otc": 85}
+        mock_raw_pocketoption.payout.assert_awaited_once_with(["EURUSD_otc"])
+
+    @pytest.mark.asyncio
+    async def test_payouts_without_filter_requests_the_full_catalog(
+        self, async_client, mock_raw_pocketoption
+    ):
+        """The default keeps the old all-assets behaviour."""
+        mock_raw_pocketoption.payout = AsyncMock(
+            return_value=json.dumps({"EURUSD_otc": 85, "GBPUSD_otc": 82})
+        )
+
+        payouts = await async_client.payouts()
+
+        assert payouts == {"EURUSD_otc": 85, "GBPUSD_otc": 82}
+        mock_raw_pocketoption.payout.assert_awaited_once_with(None)
 
 
 class TestActiveAssets:

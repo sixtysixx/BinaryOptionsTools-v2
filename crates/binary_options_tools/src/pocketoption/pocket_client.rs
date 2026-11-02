@@ -729,6 +729,37 @@ impl PocketOption {
         None
     }
 
+    /// Gets the payout percentage of one asset.
+    ///
+    /// The lookup happens in place under the catalog's read lock and does not
+    /// clone the catalog, which is what makes it cheap enough to call before
+    /// every order. Returns `None` when the catalog has not been loaded yet, or
+    /// when the symbol is unknown or not currently tradable.
+    pub async fn payout(&self, asset: &str) -> Option<i32> {
+        let state = &self.client.state;
+        let assets = state.assets.read().await;
+        assets.as_ref()?.payout(asset)
+    }
+
+    /// Gets the payout percentages of the active assets.
+    ///
+    /// `symbols` restricts both the work and the result to a watchlist; `None`
+    /// returns every active asset. The catalog is read in place in both cases,
+    /// so callers do not pay for cloning (or serialising) symbols they did not
+    /// ask about.
+    ///
+    /// Returns `None` when the catalog has not been loaded yet.
+    pub async fn payouts(&self, symbols: Option<&[String]>) -> Option<HashMap<String, i32>> {
+        let state = &self.client.state;
+        let assets = state.assets.read().await;
+        let assets = assets.as_ref()?;
+
+        Some(match symbols {
+            Some(symbols) => assets.payouts_for(symbols),
+            None => assets.payouts(),
+        })
+    }
+
     /// Waits for the assets to be loaded from the server.
     /// # Arguments
     /// * `timeout` - The maximum time to wait for assets to be loaded.
