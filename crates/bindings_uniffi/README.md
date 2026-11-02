@@ -23,7 +23,7 @@ generated from this crate with `uniffi-bindgen` (proc-macro based, no `.udl`):
 
 ```bash
 # generate the bindings for one language
-cargo run -p binary_options_tools_uni --bin uniffi-bindgen generate \
+cargo run -p bo2-uniffi-bindgen --bin uniffi-bindgen generate \
     --library --language kotlin --out-dir out/kotlin
 
 # available: kotlin, swift, python, ruby
@@ -177,7 +177,7 @@ cd BinaryOptionsTools-v2/BinaryOptionsToolsUni
 cargo build --release
 
 # Generate bindings for your target language
-cargo run -p binary_options_tools_uni --bin uniffi-bindgen generate --library --language kotlin --out-dir out/kotlin
+cargo run -p bo2-uniffi-bindgen --bin uniffi-bindgen generate --library --language kotlin --out-dir out/kotlin
     --language <python|kotlin|swift|ruby> \
     --out-dir out/<language>
 ```

@@ -15,7 +15,7 @@ Example Ruby programs demonstrating the BinaryOptionsTools library with Async fi
 - Async gem
 
 ```bash
-cargo run -p binary_options_tools_uni --bin uniffi-bindgen generate --library --language ruby --out-dir out/ruby
+cargo run -p bo2-uniffi-bindgen --bin uniffi-bindgen generate --library --language ruby --out-dir out/ruby
 gem install async
 ```
 

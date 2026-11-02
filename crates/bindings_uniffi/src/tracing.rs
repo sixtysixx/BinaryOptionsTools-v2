@@ -1,9 +1,23 @@
+use std::str::FromStr;
+
+use tracing::Level;
+use tracing_subscriber::{
+    filter::Targets, layer::SubscriberExt, util::SubscriberInitExt,
+};
+
 /// Initialize logging for the UniFFI bindings.
 ///
-/// Uses the `tracing` crate's default subscriber.
-/// Call this once at application startup.
+/// Honours `RUST_LOG` directives such as `warn` or `warn,binary_options_tools=debug`.
+/// `filter::Targets` parses those without the `env-filter` feature, whose matcher
+/// pulls regex-automata into every crate that depends on the subscriber.
 pub fn init_tracing() {
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+    let targets = std::env::var("RUST_LOG")
+        .ok()
+        .and_then(|value| Targets::from_str(&value).ok())
+        .unwrap_or_else(|| Targets::new().with_default(Level::INFO));
+
+    let _ = tracing_subscriber::registry()
+        .with(targets)
+        .with(tracing_subscriber::fmt::layer())
         .try_init();
 }
