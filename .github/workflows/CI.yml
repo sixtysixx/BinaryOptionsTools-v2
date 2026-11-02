@@ -31,14 +31,15 @@ jobs:
         with:
           persist-credentials: false
 
-      # maturin builds inside the manylinux image, but the workspace (and with it
-      # target/) is mounted from the runner, so a restored cache is what cargo sees.
       - uses: dtolnay/rust-toolchain@stable
       - name: Cache cargo build
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: "."
           key: ${{ matrix.target }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13.12"
 
       - name: Install Zig
         uses: mlugg/setup-zig@v2
@@ -49,9 +50,13 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          # --zig handles the cross-compilation and linking for GLIBC/MUSL
+          # --zig handles the cross-compilation and linking for GLIBC/MUSL. The
+          # build runs on the runner rather than in the manylinux image: the
+          # container never reused the restored target/, so every job rebuilt the
+          # dependency tree, while host builds (windows, macos, nodejs) reuse it.
           args: --release --strip --out dist -i python3.13 --zig
           manylinux: ${{ matrix.libc }}
+          container: "off"
           working-directory: python
 
       - name: Upload wheels
