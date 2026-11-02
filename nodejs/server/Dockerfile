@@ -26,10 +26,15 @@ COPY crates/bindings_napi/Cargo.toml crates/bindings_napi/Cargo.toml
 COPY crates/bindings_pyo3/Cargo.toml crates/bindings_pyo3/Cargo.toml
 COPY crates/bindings_uniffi/Cargo.toml crates/bindings_uniffi/Cargo.toml
 COPY crates/bindings_uniffi/bo2_macros/Cargo.toml crates/bindings_uniffi/bo2_macros/Cargo.toml
+COPY crates/bindings_uniffi/uniffi-bindgen/Cargo.toml crates/bindings_uniffi/uniffi-bindgen/Cargo.toml
 RUN set -eux; \
-    for d in crates/core crates/core/macros crates/macros crates/binary_options_tools \
-             crates/bindings_napi crates/bindings_pyo3 crates/bindings_uniffi \
-             crates/bindings_uniffi/bo2_macros; do \
+    # Every member of the workspace above needs its manifest here, otherwise cargo
+    # refuses to load the workspace at all. Fail with that sentence instead of
+    # cargo's "failed to load manifest for workspace member" when a member is added.
+    for d in $(sed -n '/^members = \[/,/^\]/p' Cargo.toml | grep -o '"[^"]*"' | tr -d '"'); do \
+      test -f "$d/Cargo.toml" || { \
+        echo "workspace member $d has no manifest in this layer: add a COPY line above"; exit 1; \
+      }; \
       mkdir -p "$d/src"; : > "$d/src/lib.rs"; \
     done; \
     cargo build -p binary_options_tools_napi --release
