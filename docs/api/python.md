@@ -177,9 +177,9 @@ There is no multi-symbol history endpoint on the broker, so the call still sends
 one history request per symbol. Requests start about 200 ms apart and at most four
 are in flight, capping the client at roughly five requests per second: budget at
 least `len(assets) / 5` seconds and remember that this budget is shared with every
-other candle/tick request on the same client. `candles_many` overlaps the
-per-symbol requests, so it is about twice as fast as a Python loop over
-`candles()`, but it cannot beat the pacing limit. See
+other candle/tick request on the same client. The pool removes head-of-line
+blocking — one slow symbol no longer holds up the symbols queued behind it — but
+it cannot beat the pacing limit. See
 [candle history limits](../guides/candle-history-limits.md#watching-many-symbols-at-once).
 
 ### Subscriptions

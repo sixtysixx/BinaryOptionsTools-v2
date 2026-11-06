@@ -1136,6 +1136,31 @@ class TestCandlesMany:
         mock_raw_pocketoption.compile_candles.assert_not_awaited()
 
     @pytest.mark.asyncio
+    async def test_reconnect_clears_cache(self, async_client, mock_raw_pocketoption):
+        """A reconnect drops snapshots taken on the previous session."""
+        mock_raw_pocketoption.compile_candles = AsyncMock(
+            return_value=json.dumps(
+                [
+                    {
+                        "time": 1699999920,
+                        "open": 1.1,
+                        "high": 1.2,
+                        "low": 1.0,
+                        "close": 1.15,
+                    }
+                ]
+            )
+        )
+
+        await async_client.candles_many(["EURUSD_otc"], 60, count=1)
+        assert async_client._candles_many_cache
+
+        await async_client.reconnect()
+
+        assert async_client._candles_many_cache == {}
+        assert mock_raw_pocketoption.compile_candles.await_count == 1
+
+    @pytest.mark.asyncio
     async def test_shutdown_clears_cache(self, async_client, mock_raw_pocketoption):
         """Shutdown drops cached snapshots and their locks."""
         mock_raw_pocketoption.compile_candles = AsyncMock(

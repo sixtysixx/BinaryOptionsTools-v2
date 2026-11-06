@@ -137,10 +137,44 @@ overlaps up to four requests, but the 200 ms pace is a hard floor: expect roughl
 That floor only applies to actual fetches. Closed candles are immutable, so
 `candles_many` caches the snapshot per `(symbol, period, count)` until the next
 candle boundary: a 2.5 s poll of a 60 s timeframe reuses the cached candles for
-~24 of every 25 calls, and concurrent rooms asking for the same key share one
+about 24 of every 25 calls, and concurrent rooms asking for the same key share one
 in-flight request. Polling with `count=2` instead of the default `count=100` keeps
 each fetch to a single tick page. A disconnected client, or one whose channel
 closed, raises `ConnectionError` instead of returning an empty mapping.
+
+The pacing also sets a hard size limit per timeframe: a full sweep of _n_ symbols
+takes about `n / 5` seconds, so 100 symbols need ~20 s and cannot feed a 5 s
+timeframe from one client. Divide a wide, fast feed across several clients (each
+has its own pacer and its own five requests per second) or poll fewer symbols at
+that cadence. Cache hits do not consume the budget, so a 60 s timeframe costs one
+sweep per minute no matter how often it is polled.
+
+### Recovering from a stalled session
+
+A session that stops answering does not start returning data on its own, and
+`candles_many` will not paper over it with an empty result. Treat
+`ConnectionError` as the signal to rebuild the connection:
+
+```python
+from BinaryOptionsToolsV2.pocketoption import PocketOptionAsync
+
+
+async def poll(client, symbols, period, retries=2):
+    for attempt in range(retries + 1):
+        try:
+            return await client.candles_many(symbols, period, count=2)
+        except ConnectionError:
+            # `reconnect()` re-authenticates over the same client and drops the
+            # cached snapshots; give up after the last retry and restart the task.
+            if attempt == retries:
+                raise
+            await client.reconnect()
+```
+
+`reconnect()` keeps the client object, so callers holding it do not have to be
+rebuilt; the cached `candles_many` snapshots are dropped and the next poll fetches
+fresh ones. Run reconnects one at a time per client (a lock around the call is
+enough) so several loops do not cycle the same connection concurrently.
 
 ## Which to use
 
