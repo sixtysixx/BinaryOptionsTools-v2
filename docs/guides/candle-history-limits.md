@@ -134,6 +134,14 @@ compiles each snapshot from tick pages directly (no per-symbol subscription) and
 overlaps up to four requests, but the 200 ms pace is a hard floor: expect roughly
 `len(assets) / 5` seconds.
 
+That floor only applies to actual fetches. Closed candles are immutable, so
+`candles_many` caches the snapshot per `(symbol, period, count)` until the next
+candle boundary: a 2.5 s poll of a 60 s timeframe reuses the cached candles for
+~24 of every 25 calls, and concurrent rooms asking for the same key share one
+in-flight request. Polling with `count=2` instead of the default `count=100` keeps
+each fetch to a single tick page. A disconnected client, or one whose channel
+closed, raises `ConnectionError` instead of returning an empty mapping.
+
 ## Which to use
 
 - **Standard timeframe, want endpoint history** → `get_candles_advanced` (or

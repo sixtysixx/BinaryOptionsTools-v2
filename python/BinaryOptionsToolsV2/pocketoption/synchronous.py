@@ -410,6 +410,16 @@ class PocketOption:
         be fetched (closed market, unknown symbol) are absent from the result
         instead of failing the whole batch.
 
+        Closed candles are immutable, so the snapshot for a given
+        ``(symbol, period, count)`` is cached until the next candle boundary:
+        repeated polls inside one period return the cached candles without
+        another broker request. Pass ``count=2`` when you only need the latest
+        closed candle; the default requests a much wider tick window.
+
+        Raises:
+            ConnectionError: If the client is not connected or the channel closed
+                during the batch.
+
         The broker has no multi-symbol history request, so each symbol costs its
         own ``loadHistoryPeriod`` round-trip. The client starts history requests
         about 200 ms apart and keeps at most four in flight, which caps the whole

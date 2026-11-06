@@ -180,6 +180,9 @@ class MockRawClient:
     def is_demo(self):
         return True
 
+    def is_connected(self):
+        return self._connected
+
     async def disconnect(self):
         self._connected = False
 
@@ -854,6 +857,308 @@ class TestCandlesMany:
         assert await async_client.candles_many([], 60) == {}
         assert await async_client.candles_many(["EURUSD_otc"], 60, count=0) == {}
         mock_raw_pocketoption.compile_candles.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_repeated_call_within_candle_is_cached(
+        self, async_client, mock_raw_pocketoption
+    ):
+        """A second poll inside the same candle period reuses the snapshot."""
+        mock_raw_pocketoption.compile_candles = AsyncMock(
+            return_value=json.dumps(
+                [
+                    {
+                        "time": 1699999920,
+                        "open": 1.1,
+                        "high": 1.2,
+                        "low": 1.0,
+                        "close": 1.15,
+                    }
+                ]
+            )
+        )
+
+        first = await async_client.candles_many(["EURUSD_otc"], 60, count=1)
+        second = await async_client.candles_many(["EURUSD_otc"], 60, count=1)
+
+        assert first == second
+        assert first["EURUSD_otc"][-1]["time"] == 1699999920
+        mock_raw_pocketoption.compile_candles.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_cache_invalidates_after_boundary(
+        self, async_client, mock_raw_pocketoption
+    ):
+        """Crossing a candle boundary refetches instead of serving a stale snapshot."""
+        mock_raw_pocketoption.get_server_time = AsyncMock(
+            side_effect=[1700000000, 1700000060]
+        )
+        mock_raw_pocketoption.compile_candles = AsyncMock(
+            side_effect=[
+                json.dumps(
+                    [
+                        {
+                            "time": 1699999920,
+                            "open": 1.1,
+                            "high": 1.2,
+                            "low": 1.0,
+                            "close": 1.15,
+                        }
+                    ]
+                ),
+                json.dumps(
+                    [
+                        {
+                            "time": 1699999980,
+                            "open": 1.15,
+                            "high": 1.25,
+                            "low": 1.1,
+                            "close": 1.2,
+                        }
+                    ]
+                ),
+            ]
+        )
+
+        await async_client.candles_many(["EURUSD_otc"], 60, count=1)
+        second = await async_client.candles_many(["EURUSD_otc"], 60, count=1)
+
+        assert second["EURUSD_otc"][-1]["time"] == 1699999980
+        assert mock_raw_pocketoption.compile_candles.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_existing_stale_entry_is_not_served(
+        self, async_client, mock_raw_pocketoption
+    ):
+        """A cached row older than the current boundary is refetched, not returned.
+
+        The cache is seeded directly with a poisoned snapshot so this fails on any
+        cache that never invalidates, without needing a first call to populate it.
+        """
+        async_client._candles_many_cache[("EURUSD_otc", 60, 1)] = (
+            1699999920,
+            [{"time": 1699999920, "open": 0.0, "high": 0.0, "low": 0.0, "close": 0.0}],
+        )
+        mock_raw_pocketoption.get_server_time = AsyncMock(return_value=1700000060)
+        mock_raw_pocketoption.compile_candles = AsyncMock(
+            return_value=json.dumps(
+                [
+                    {
+                        "time": 1699999980,
+                        "open": 1.15,
+                        "high": 1.25,
+                        "low": 1.1,
+                        "close": 1.2,
+                    }
+                ]
+            )
+        )
+
+        feed = await async_client.candles_many(["EURUSD_otc"], 60, count=1)
+
+        assert feed["EURUSD_otc"][-1]["time"] == 1699999980
+        assert feed["EURUSD_otc"][-1]["close"] == 1.2
+        mock_raw_pocketoption.compile_candles.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_cache_evicts_oldest_entry(
+        self, async_client, mock_raw_pocketoption, monkeypatch
+    ):
+        """The cache stays bounded by dropping the least recently used snapshot."""
+        import BinaryOptionsToolsV2.pocketoption.asynchronous as async_module
+
+        monkeypatch.setattr(async_module, "CANDLES_MANY_CACHE_MAX_ENTRIES", 2)
+        mock_raw_pocketoption.compile_candles = AsyncMock(
+            return_value=json.dumps(
+                [
+                    {
+                        "time": 1699999920,
+                        "open": 1.1,
+                        "high": 1.2,
+                        "low": 1.0,
+                        "close": 1.15,
+                    }
+                ]
+            )
+        )
+
+        for asset in ("EURUSD_otc", "GBPUSD_otc", "USDJPY_otc"):
+            await async_client.candles_many([asset], 60, count=1)
+
+        assert list(async_client._candles_many_cache) == [
+            ("GBPUSD_otc", 60, 1),
+            ("USDJPY_otc", 60, 1),
+        ]
+        assert mock_raw_pocketoption.compile_candles.await_count == 3
+
+    @pytest.mark.asyncio
+    async def test_concurrent_calls_share_one_fetch(
+        self, async_client, mock_raw_pocketoption
+    ):
+        """Concurrent callers for one key single-flight into a single request."""
+
+        async def compile_candles(asset, period, lookback):
+            await asyncio.sleep(0.05)
+            return json.dumps(
+                [
+                    {
+                        "time": 1699999920,
+                        "open": 1.1,
+                        "high": 1.2,
+                        "low": 1.0,
+                        "close": 1.15,
+                    }
+                ]
+            )
+
+        mock_raw_pocketoption.compile_candles = AsyncMock(side_effect=compile_candles)
+
+        results = await asyncio.gather(
+            async_client.candles_many(["EURUSD_otc"], 60, count=1),
+            async_client.candles_many(["EURUSD_otc"], 60, count=1),
+        )
+
+        assert results[0] == results[1]
+        assert set(results[0]) == {"EURUSD_otc"}
+        mock_raw_pocketoption.compile_candles.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_disconnected_client_raises_without_fetch(
+        self, async_client, mock_raw_pocketoption
+    ):
+        """A dead connection must not look like an empty market."""
+        mock_raw_pocketoption.compile_candles = AsyncMock()
+        mock_raw_pocketoption._connected = False
+
+        with pytest.raises(ConnectionError, match="not connected"):
+            await async_client.candles_many(["EURUSD_otc"], 60, count=1)
+
+        mock_raw_pocketoption.compile_candles.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_connection_lost_mid_batch_raises(
+        self, async_client, mock_raw_pocketoption
+    ):
+        """A connection that dies during the batch fails it, even if rows came back."""
+        mock_raw_pocketoption.is_connected = MagicMock(side_effect=[True, False])
+        mock_raw_pocketoption.compile_candles = AsyncMock(
+            return_value=json.dumps(
+                [
+                    {
+                        "time": 1699999920,
+                        "open": 1.1,
+                        "high": 1.2,
+                        "low": 1.0,
+                        "close": 1.15,
+                    }
+                ]
+            )
+        )
+
+        with pytest.raises(ConnectionError, match="connection was lost"):
+            await async_client.candles_many(["EURUSD_otc"], 60, count=1)
+
+    @pytest.mark.asyncio
+    async def test_channel_closed_error_raises(
+        self, async_client, mock_raw_pocketoption
+    ):
+        """The runner's channel-receiver error surfaces as ConnectionError."""
+        mock_raw_pocketoption.compile_candles = AsyncMock(
+            side_effect=RuntimeError("Core error: Channel receiver error: Closed")
+        )
+
+        with pytest.raises(ConnectionError, match="channel closed"):
+            await async_client.candles_many(["EURUSD_otc"], 60, count=1)
+
+        assert async_client._candles_many_cache == {}
+
+    @pytest.mark.asyncio
+    async def test_cached_lists_are_copied(self, async_client, mock_raw_pocketoption):
+        """Mutating a returned candle cannot corrupt the cached snapshot."""
+        mock_raw_pocketoption.compile_candles = AsyncMock(
+            return_value=json.dumps(
+                [
+                    {
+                        "time": 1699999920,
+                        "open": 1.1,
+                        "high": 1.2,
+                        "low": 1.0,
+                        "close": 1.15,
+                    }
+                ]
+            )
+        )
+
+        first = await async_client.candles_many(["EURUSD_otc"], 60, count=1)
+        first["EURUSD_otc"][0]["close"] = 999.0
+        second = await async_client.candles_many(["EURUSD_otc"], 60, count=1)
+
+        assert second["EURUSD_otc"][0]["close"] == 1.15
+        mock_raw_pocketoption.compile_candles.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_failed_fetch_is_not_cached(
+        self, async_client, mock_raw_pocketoption
+    ):
+        """A per-symbol failure is retried on the next poll."""
+        mock_raw_pocketoption.compile_candles = AsyncMock(
+            side_effect=[
+                ValueError("Asset `EURUSD_otc` is not active"),
+                json.dumps(
+                    [
+                        {
+                            "time": 1699999920,
+                            "open": 1.1,
+                            "high": 1.2,
+                            "low": 1.0,
+                            "close": 1.15,
+                        }
+                    ]
+                ),
+            ]
+        )
+
+        assert await async_client.candles_many(["EURUSD_otc"], 60, count=1) == {}
+        second = await async_client.candles_many(["EURUSD_otc"], 60, count=1)
+
+        assert set(second) == {"EURUSD_otc"}
+        assert mock_raw_pocketoption.compile_candles.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_non_positive_period_raises(
+        self, async_client, mock_raw_pocketoption
+    ):
+        """A zero or negative period is a caller error, not an empty batch."""
+        mock_raw_pocketoption.compile_candles = AsyncMock()
+
+        with pytest.raises(ValueError, match="period"):
+            await async_client.candles_many(["EURUSD_otc"], 0)
+
+        mock_raw_pocketoption.compile_candles.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_shutdown_clears_cache(self, async_client, mock_raw_pocketoption):
+        """Shutdown drops cached snapshots and their locks."""
+        mock_raw_pocketoption.compile_candles = AsyncMock(
+            return_value=json.dumps(
+                [
+                    {
+                        "time": 1699999920,
+                        "open": 1.1,
+                        "high": 1.2,
+                        "low": 1.0,
+                        "close": 1.15,
+                    }
+                ]
+            )
+        )
+
+        await async_client.candles_many(["EURUSD_otc"], 60, count=1)
+        assert async_client._candles_many_cache
+
+        await async_client.shutdown()
+
+        assert async_client._candles_many_cache == {}
+        assert async_client._candles_many_locks == {}
 
 
 class TestTicks:

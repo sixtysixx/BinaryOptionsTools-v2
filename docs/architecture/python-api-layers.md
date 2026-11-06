@@ -65,6 +65,13 @@ inside the cached catalog so polling a watchlist does not pay for every symbol.
 | `compile_candles(...)`                             | **Deprecated** on the wrapper; builds non-standard timeframes from ticks.                                                                                                   |
 | `ticks(asset, seconds)` / `get_ticks(...)`         | Raw `(timestamp, price)` tuples.                                                                                                                                            |
 
+`candles_many` caches each `(asset, period, count)` snapshot until the next candle
+boundary — closed candles are immutable — and single-flights concurrent callers
+that want the same key. The cache is cleared on `disconnect()`, `connect()`,
+`reconnect()` and `shutdown()`. A dead session raises `ConnectionError` (not
+connected, disconnected mid-batch, or the engine's channel-closed error) instead
+of returning an empty mapping; per-symbol failures are still omitted.
+
 `offset` is the most common trap: on `get_candles_advanced` it is **seconds**, not
 a count of periods. `candles(..., end_time=...)` currently forwards `count` as
 that `offset`, so the requested window can be much shorter than `count` periods,

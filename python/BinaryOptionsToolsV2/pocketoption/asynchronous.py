@@ -19,7 +19,7 @@ import re
 import sys
 import time
 import warnings
-from collections import deque
+from collections import OrderedDict, deque
 from datetime import timedelta
 from typing import TYPE_CHECKING, AsyncGenerator, Awaitable, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
@@ -38,6 +38,17 @@ TICK_HISTORY_FETCH_TIMEOUT = 10.0
 # in-flight ceiling, not a throughput knob. Requests cannot go faster than the
 # pace regardless of how many callers are waiting.
 CANDLES_MANY_CONCURRENCY = 4
+# Closed candles do not change, so a `candles_many` snapshot stays valid until the
+# next candle boundary. The bound only guards against unbounded growth when a bot
+# sweeps many symbols/periods/counts on one long-lived client.
+CANDLES_MANY_CACHE_MAX_ENTRIES = 4096
+# The runner reports a dead channel as a channel-receiver error rather than a
+# closed socket, so a batch has to match on the message to fail loudly.
+_CHANNEL_CLOSED_MARKERS = (
+    "ChannelReceiver",
+    "Channel receiver error",
+    "channel closed",
+)
 
 if TYPE_CHECKING:
     from ..BinaryOptionsToolsV2 import Logger, RawPocketOption
@@ -315,6 +326,16 @@ def _closed_candles(candles: List[Dict]) -> List[Dict]:
     return closed
 
 
+def _latest_closed_candle_time(now: int, period: int) -> int:
+    """Open time of the newest candle that can already be closed at ``now``."""
+    return (int(now) // period) * period - period
+
+
+def _is_channel_closed_error(error: BaseException) -> bool:
+    text = str(error)
+    return any(marker in text for marker in _CHANNEL_CLOSED_MARKERS)
+
+
 class PocketOptionAsync:
     def __init__(self, ssid: str, url: Optional[str] = None, config: Optional[Union[Config, dict, str]] = None, **_):
         """
@@ -410,6 +431,7 @@ class PocketOptionAsync:
                 pass
 
         self.client: "RawPocketOption" = RawPocketOption.new_with_config(ssid, self.config.pyconfig)
+        self._init_candles_many_state()
 
     @classmethod
     async def try_demo(cls, token: Optional[str] = None) -> "PocketOptionAsync":
@@ -438,6 +460,7 @@ class PocketOptionAsync:
         self._guest_session = True
         self.config = Config()
         self.client = await RawPocketOption.create_try_demo(token)
+        self._init_candles_many_state()
         return self
 
     async def __aenter__(self):
@@ -678,6 +701,15 @@ class PocketOptionAsync:
         candles = await self.client.get_candles_advanced(asset, period, offset=offset, time=time)
         return json.loads(candles)
 
+    def _init_candles_many_state(self) -> None:
+        """Create the ``candles_many`` snapshot cache and its per-key locks."""
+        self._candles_many_cache: "OrderedDict[Tuple[str, int, int], Tuple[int, List[Dict]]]" = OrderedDict()
+        self._candles_many_locks: Dict[Tuple[str, int, int], asyncio.Lock] = {}
+
+    def _clear_candles_many_cache(self) -> None:
+        """Drop cached snapshots without discarding in-flight single-flight locks."""
+        self._candles_many_cache.clear()
+
     async def candles_many(
         self,
         assets: Sequence[str],
@@ -691,6 +723,12 @@ class PocketOptionAsync:
         each symbol": it polls snapshots instead of holding one live stream per
         symbol, so it is not subject to the server's limit on how many symbols it
         will stream at once (measured at about two per session).
+
+        Closed candles are immutable, so the snapshot for a given
+        ``(symbol, period, count)`` is cached until the next candle boundary:
+        repeated polls inside one period return the cached candles without
+        another broker request, and concurrent callers asking for the same key
+        share a single in-flight fetch instead of racing.
 
         The broker has no multi-symbol history request, so each symbol costs its
         own ``loadHistoryPeriod`` round-trip (more when the requested window
@@ -706,15 +744,25 @@ class PocketOptionAsync:
             period: Candle timeframe in seconds.
             count: Candles to request per symbol. Only the last one is needed for
                 most bots, but a few extra make it easy to build indicators.
+                This multiplies the lookback window, and ``compile_candles()``
+                pages at 1000 ticks per request, so the default of 100 can cost
+                several requests per symbol on a 60 second timeframe: pass
+                ``count=2`` when you only poll the latest closed candle.
 
         Returns:
             Mapping of symbol to its candles, oldest first. Symbols that could not
             be fetched are simply absent, so a closed market does not fail the batch.
 
+        Raises:
+            ConnectionError: If the client is not connected, the connection drops
+                mid-batch, or the engine reports a closed channel. A dead
+                connection must not look like an empty market.
+            ValueError: If ``period`` is not a positive integer.
+
         Example:
             ```python
             async with PocketOptionAsync(ssid) as client:
-                feed = await client.candles_many(["EURUSD_otc", "GBPUSD_otc"], 60)
+                feed = await client.candles_many(["EURUSD_otc", "GBPUSD_otc"], 60, count=2)
                 for symbol, candles in feed.items():
                     print(symbol, candles[-1]["close"])
             ```
@@ -727,9 +775,25 @@ class PocketOptionAsync:
         if not unique:
             return {}
 
-        lookback = max(period, count * period)
+        if period <= 0:
+            raise ValueError("period must be a positive integer")
 
-        async def fetch(asset: str) -> Optional[List[Dict]]:
+        if not self.is_connected():
+            raise ConnectionError("PocketOption client is not connected")
+
+        # One clock read per batch; the boundary check below adds the monotonic
+        # elapsed time so a sweep that crosses a candle boundary mid-flight does
+        # not serve a snapshot taken before that boundary.
+        try:
+            server_now = int(await self.get_server_time())
+        except Exception:  # noqa: BLE001 - a clock read must not fail the batch
+            server_now = int(time.time())
+        started = time.monotonic()
+
+        lookback = max(period, count * period)
+        semaphore = asyncio.Semaphore(CANDLES_MANY_CONCURRENCY)
+
+        async def fetch(asset: str) -> Tuple[Optional[List[Dict]], Optional[Exception]]:
             try:
                 # Snapshot ticks are compiled directly instead of going through
                 # `candles()`, which would open (and immediately release) a live
@@ -737,19 +801,53 @@ class PocketOptionAsync:
                 # this method exists to avoid.
                 payload = await self.client.compile_candles(asset, period, lookback)
                 raw = json.loads(payload) if payload else []
-            except Exception:  # noqa: BLE001 - one bad symbol must not fail the batch
-                return None
+                return _closed_candles(raw)[-count:], None
+            except asyncio.CancelledError:
+                raise
+            except Exception as error:  # noqa: BLE001 - one bad symbol must not fail the batch
+                return None, error
 
-            return _closed_candles(raw)[-count:]
+        async def get(asset: str) -> Tuple[str, Optional[List[Dict]], Optional[Exception]]:
+            key = (asset, period, count)
+            lock = self._candles_many_locks.get(key)
+            if lock is None:
+                lock = self._candles_many_locks[key] = asyncio.Lock()
 
-        semaphore = asyncio.Semaphore(CANDLES_MANY_CONCURRENCY)
+            async with lock:
+                elapsed = int(time.monotonic() - started)
+                expected = _latest_closed_candle_time(server_now + elapsed, period)
+                cached = self._candles_many_cache.get(key)
+                if cached is not None and cached[0] >= expected:
+                    self._candles_many_cache.move_to_end(key)
+                    # Copy so a caller mutating its result cannot corrupt the cache.
+                    return asset, [dict(candle) for candle in cached[1]], None
 
-        async def bounded_fetch(asset: str) -> Tuple[str, Optional[List[Dict]]]:
-            async with semaphore:
-                return asset, await fetch(asset)
+                async with semaphore:
+                    candles, error = await fetch(asset)
 
-        pairs = await asyncio.gather(*(bounded_fetch(asset) for asset in unique))
-        return {asset: candles for asset, candles in pairs if candles}
+                if not candles:
+                    # Failures are never cached, so the next poll retries them.
+                    return asset, None, error
+
+                stored = [dict(candle) for candle in candles]
+                self._candles_many_cache[key] = (stored[-1]["time"], stored)
+                self._candles_many_cache.move_to_end(key)
+                while len(self._candles_many_cache) > CANDLES_MANY_CACHE_MAX_ENTRIES:
+                    self._candles_many_cache.popitem(last=False)
+                return asset, [dict(candle) for candle in stored], None
+
+        pairs = await asyncio.gather(*(get(asset) for asset in unique))
+
+        errors = [error for _, _, error in pairs if error is not None]
+
+        if not self.is_connected():
+            raise ConnectionError("PocketOption connection was lost while fetching candles")
+
+        channel_errors = [error for error in errors if _is_channel_closed_error(error)]
+        if channel_errors:
+            raise ConnectionError(f"PocketOption channel closed while fetching candles: {channel_errors[0]}")
+
+        return {asset: candles for asset, candles, _ in pairs if candles}
 
     async def get_candles_live(
         self,
@@ -1751,6 +1849,8 @@ class PocketOptionAsync:
             # The client will try to reconnect in the background...
             ```
         """
+        # Snapshots are only trustworthy for the connection that produced them.
+        self._clear_candles_many_cache()
         await self.client.disconnect()
 
     async def connect(self) -> None:
@@ -1766,6 +1866,7 @@ class PocketOptionAsync:
             # Connection is re-established
             ```
         """
+        self._clear_candles_many_cache()
         await self.client.connect()
 
     async def reconnect(self) -> None:
@@ -1777,6 +1878,7 @@ class PocketOptionAsync:
             await client.reconnect()
             ```
         """
+        self._clear_candles_many_cache()
         await self.client.reconnect()
 
     async def unsubscribe(self, asset: str) -> None:
@@ -1802,6 +1904,8 @@ class PocketOptionAsync:
         Completely shuts down the client and its background runner.
         Once shut down, the client cannot be used anymore.
         """
+        self._candles_many_cache.clear()
+        self._candles_many_locks.clear()
         await self.client.shutdown()
 
     async def raw_handler(self, validator: Validator, keep_alive: Optional[str] = None) -> "RawHandler":

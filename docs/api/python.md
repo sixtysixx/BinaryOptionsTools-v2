@@ -157,7 +157,21 @@ for symbol, candles in feed.items():
 ```
 
 Symbols that cannot be fetched are absent from the result rather than failing the
-whole call.
+whole call. A dead connection is not treated that way: `candles_many` raises
+`ConnectionError` when the client is disconnected, when the connection drops
+during the batch, or when the engine reports a closed channel
+(`ChannelReceiver` / `channel closed`), so a broken session cannot masquerade as
+an empty market.
+
+Closed candles never change, so the snapshot for a given
+`(symbol, period, count)` is cached until the next candle boundary: repeated polls
+inside one period reuse the cached candles without another broker request, and
+concurrent callers asking for the same key share a single in-flight fetch. The
+cache is dropped on `disconnect()`, `connect()`, `reconnect()` and `shutdown()`.
+Because `count` multiplies the lookback window and `compile_candles()` pages at
+1,000 ticks per request, pass `count=2` when you only need the latest closed
+candle — the default of 100 can cost several requests per symbol on a 60 s
+timeframe.
 
 There is no multi-symbol history endpoint on the broker, so the call still sends
 one history request per symbol. Requests start about 200 ms apart and at most four

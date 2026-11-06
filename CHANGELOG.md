@@ -5,11 +5,12 @@ All notable changes to BinaryOptionsTools v2 will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.18 HOTFIX]
+## [0.2.18]
 
 ### Added
 
 - `PocketOptionAsync.payouts(assets=...)` / `PocketOption.payouts(assets=...)` accept a watchlist and return only those symbols, so a periodic payout poll no longer reads and serialises the whole catalog. The raw binding exposes both the filtered `payout(assets=None)` and a single-symbol `payout_for(asset)` that returns the integer directly.
+- **`candles_many()` caches closed-candle snapshots and single-flights concurrent polls.** Closed candles are immutable, so the snapshot for a `(symbol, period, count)` key is reused until the next candle boundary, and concurrent callers asking for the same key share one in-flight fetch instead of each issuing one. A 2.5 s poll of a 60 s timeframe therefore costs one fetch per symbol per period rather than one per poll, without relaxing the broker's ~5 requests/s ceiling for the fetches that do happen. The cache is dropped on `disconnect()`, `connect()`, `reconnect()` and `shutdown()`. Pass `count=2` when only the latest closed candle is needed: `count` multiplies the tick lookback, so the default of 100 can cost several 1,000-tick pages per symbol.
 
 ### Fixed
 
@@ -19,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Validator regexes are compiled with `regex-lite` instead of `regex`.** The dependency graph now builds a single small engine instead of `regex` + `aho-corasick` + `regex-automata`. The syntax is a subset: no look-around, no backreferences and no Unicode character classes such as `\p{L}`, and `\d`, `\w`, `\s` match ASCII only. Unsupported patterns fail when the validator is built rather than matching at runtime.
 - **`candles_many()` no longer opens a live subscription per symbol.** It compiles each snapshot from tick pages and overlaps the per-symbol requests with a bounded pool, roughly halving the wall time of a wide batch. The broker has no multi-symbol history endpoint and paces request starts by 200 ms (four in flight), so the documented ceiling is about five symbols per second per client; `candles_many` cannot beat it.
+- **`candles_many()` now raises `ConnectionError` on a dead session instead of returning an empty mapping.** It raises when the client is not connected, when the connection drops during the batch, or when the engine reports a closed channel (`ChannelReceiver` / `Channel receiver error` / `channel closed`) — the error the reporter of the stalled-poll issue saw swallowed into an empty result. Per-symbol failures (closed market, unknown symbol) are still omitted rather than fatal, and a non-positive `period` raises `ValueError`.
 - The sync `candles_many()` now delegates to the async implementation instead of duplicating the loop, so both clients share the same batching and error handling.
 - **Python structure documented in one place.** `docs/architecture/python-api-layers.md` now describes the Rust core -> raw PyO3 -> async -> sync layers, the steps for adding a method, and the naming traps (`payout` vs `payouts`, the candle methods, `offset` units). The async and sync modules carry matching docstrings, and the duplicated API lists in `python/README.md` / `crates/bindings_pyo3/README.md` point at the canonical reference instead of silently drifting.
 - **Candle normalization lives in one place.** `get_candles_live()` and `candles_many()` now share `_candle_timestamp`, `_normalize_candle` and `_closed_candles`, so the public `{time, open, high, low, close}` shape and the second-vs-millisecond handling cannot diverge again.
